@@ -1,0 +1,549 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#0a0a0a">
+<link rel="manifest" href="manifest.json">
+<title>VocaScroll</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;overflow:hidden;background:#0a0a0a;color:#fff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;overscroll-behavior:none}
+  body{display:flex;flex-direction:column}
+  button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+  input,select,textarea{font:inherit;color:#fff;background:#1a1a1a;border:1px solid #333;border-radius:10px;padding:.7rem .9rem;width:100%}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:#E91E63}
+  textarea{resize:vertical;min-height:80px}
+  label{display:block;font-size:.85rem;color:#aaa;margin-bottom:.3rem;margin-top:.9rem}
+  .lat{font-family:Georgia,Cambria,serif}
+
+  /* Layout */
+  #app{flex:1;overflow:hidden;position:relative}
+  .screen{position:absolute;inset:0;display:none;flex-direction:column}
+  .screen.active{display:flex}
+
+  /* Bottom nav */
+  nav{display:flex;justify-content:space-around;align-items:center;padding:.6rem 0 calc(.6rem + env(safe-area-inset-bottom));background:rgba(10,10,10,.75);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-top:1px solid #1f1f1f;z-index:100}
+  nav button{font-size:1.6rem;padding:.4rem .9rem;border-radius:12px;opacity:.55;transition:opacity .2s,background .2s}
+  nav button.active{opacity:1;background:#1a1a1a}
+  nav button .lbl{display:block;font-size:.65rem;margin-top:2px;color:#aaa}
+  nav button.active .lbl{color:#E91E63}
+
+  /* Discover */
+  #discover{overflow-y:scroll;scroll-snap-type:y mandatory;scrollbar-width:none}
+  #discover::-webkit-scrollbar{display:none}
+  .reel{height:100%;scroll-snap-align:start;scroll-snap-stop:always;display:flex;align-items:center;justify-content:center;padding:1rem;flex-shrink:0}
+  .card{background:linear-gradient(160deg,#1a1a1a,#101010);border:1px solid #222;border-radius:24px;padding:2rem 1.5rem;width:100%;max-width:520px;height:90%;max-height:780px;display:flex;flex-direction:column;cursor:pointer;position:relative;overflow:hidden;transition:transform .35s;perspective:1000px}
+  .card .face{flex:1;display:flex;flex-direction:column;justify-content:center;backface-visibility:hidden;transition:opacity .25s}
+  .card .face.back{display:none}
+  .card.flipped .face.front{display:none}
+  .card.flipped .face.back{display:flex}
+  .tag{display:inline-block;font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;color:#E91E63;border:1px solid #E91E63;padding:.2rem .6rem;border-radius:999px;align-self:flex-start;margin-bottom:1rem}
+  .lat-big{font-family:Georgia,Cambria,serif;font-size:clamp(2.2rem,8vw,3.6rem);line-height:1.15;font-weight:600}
+  .gender{color:#888;font-size:1rem;margin-top:.4rem;font-style:italic}
+  .de-big{font-size:clamp(1.6rem,5vw,2.2rem);font-weight:500;color:#fff;margin-bottom:1.2rem}
+  .mnemonic{background:#0d0d0d;border-left:3px solid #E91E63;padding:.9rem 1rem;border-radius:8px;margin-top:1rem;font-size:1.05rem;line-height:1.4}
+  .example{margin-top:1.2rem;color:#bbb;font-size:.95rem;line-height:1.5}
+  .example .lat{color:#fff;font-style:italic;display:block;margin-bottom:.3rem}
+  .hint{position:absolute;bottom:1rem;left:0;right:0;text-align:center;color:#555;font-size:.75rem}
+  .empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:#666;text-align:center;padding:2rem;gap:1rem}
+  .empty .em{font-size:4rem}
+
+  /* Quiz */
+  #quiz{padding:1rem;display:flex;flex-direction:column;align-items:center;justify-content:space-between}
+  .quiz-top{width:100%;display:flex;justify-content:space-between;color:#888;font-size:.85rem;padding:.4rem 1rem}
+  .quiz-area{flex:1;width:100%;max-width:520px;display:flex;align-items:center;justify-content:center;position:relative}
+  .qcard{background:linear-gradient(160deg,#1a1a1a,#101010);border:1px solid #222;border-radius:24px;padding:2rem 1.5rem;width:100%;height:100%;max-height:600px;display:flex;flex-direction:column;justify-content:center;touch-action:pan-y;transition:transform .25s ease,opacity .25s ease;will-change:transform}
+  .qcard.dragging{transition:none}
+  .qcard .swipe-ind{position:absolute;top:1.5rem;font-size:3rem;font-weight:900;padding:.3rem 1rem;border-radius:12px;border:4px solid;opacity:0;transform:rotate(-15deg);pointer-events:none}
+  .qcard .ind-yes{right:1.5rem;color:#22c55e;border-color:#22c55e;transform:rotate(15deg)}
+  .qcard .ind-no{left:1.5rem;color:#ef4444;border-color:#ef4444}
+  .quiz-buttons{display:flex;gap:1rem;padding:1rem;width:100%;max-width:520px;justify-content:center}
+  .quiz-buttons button{padding:1rem 1.5rem;border-radius:14px;font-size:1rem;font-weight:600;flex:1}
+  .btn-show{background:#E91E63;color:#fff}
+  .btn-no{background:#1a1a1a;border:1px solid #ef4444;color:#ef4444}
+  .btn-yes{background:#1a1a1a;border:1px solid #22c55e;color:#22c55e}
+
+  /* Add */
+  #add,#settings{overflow-y:auto;padding:1.2rem 1.2rem 2rem}
+  h1{font-size:1.4rem;margin-bottom:1rem;font-weight:600}
+  .row{display:flex;gap:.6rem}
+  .row > *{flex:1}
+  .save-btn{margin-top:1.4rem;width:100%;background:#E91E63;color:#fff;padding:1rem;border-radius:14px;font-weight:600;font-size:1rem}
+  .save-btn:disabled{opacity:.4}
+
+  /* Settings */
+  .setting-block{background:#141414;border:1px solid #222;border-radius:14px;padding:1rem;margin-bottom:.8rem}
+  .setting-block h3{font-size:.95rem;margin-bottom:.5rem}
+  .setting-block p{font-size:.85rem;color:#888;margin-bottom:.6rem}
+  .stat-row{display:flex;justify-content:space-between;padding:.4rem 0;border-bottom:1px solid #1f1f1f}
+  .stat-row:last-child{border:none}
+  .stat-row span:last-child{color:#E91E63;font-weight:600}
+  .danger{background:#1a0a0a;border:1px solid #ef4444;color:#ef4444;padding:.7rem;border-radius:10px;width:100%;margin-top:.4rem}
+  .secondary{background:#1a1a1a;border:1px solid #333;padding:.6rem;border-radius:10px;width:100%;margin-top:.4rem}
+
+  .toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#E91E63;color:#fff;padding:.7rem 1.2rem;border-radius:999px;font-size:.9rem;z-index:200;opacity:0;transition:opacity .2s;pointer-events:none}
+  .toast.show{opacity:1}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- DISCOVER -->
+  <section id="discover" class="screen active"></section>
+
+  <!-- QUIZ -->
+  <section id="quiz" class="screen">
+    <div class="quiz-top"><span id="quiz-progress">0/0</span><span id="quiz-stats">✅ 0  ❌ 0</span></div>
+    <div class="quiz-area" id="quiz-area"></div>
+    <div class="quiz-buttons" id="quiz-buttons"></div>
+  </section>
+
+  <!-- ADD -->
+  <section id="add" class="screen">
+    <h1>➕ Neue Vokabel</h1>
+    <form id="add-form">
+      <label>Latein (volle Form, z.B. „hostis, hostis")</label>
+      <input name="lat" required autocomplete="off">
+      <div class="row">
+        <div>
+          <label>Genus</label>
+          <select name="gender"><option value="-">–</option><option value="m">m</option><option value="f">f</option><option value="n">n</option></select>
+        </div>
+        <div>
+          <label>Wortart</label>
+          <select name="type"><option value="noun">Nomen</option><option value="verb">Verb</option><option value="adj">Adjektiv</option><option value="adv">Adverb</option><option value="prep">Präposition</option><option value="other">Sonstiges</option></select>
+        </div>
+      </div>
+      <label>Deutsche Bedeutung</label>
+      <input name="de" required autocomplete="off">
+      <label>Eselsbrücke <span style="color:#E91E63">*</span></label>
+      <textarea name="mnemonic" required placeholder="z.B. „Hostie als Feind der Vampire 🧛"></textarea>
+      <label>Latein-Beispielsatz (optional)</label>
+      <input name="example" autocomplete="off">
+      <label>Deutsche Übersetzung (optional)</label>
+      <input name="exampleDe" autocomplete="off">
+      <label>Lektion (optional)</label>
+      <input name="lesson" autocomplete="off" placeholder="z.B. Caesar L8">
+      <button class="save-btn" type="submit">Speichern</button>
+    </form>
+  </section>
+
+  <!-- SETTINGS -->
+  <section id="settings" class="screen">
+    <h1>⚙️ Einstellungen</h1>
+
+    <div class="setting-block">
+      <h3>Statistik</h3>
+      <div class="stat-row"><span>🔥 Streak</span><span id="s-streak">0</span></div>
+      <div class="stat-row"><span>📚 Karten gesamt</span><span id="s-total">0</span></div>
+      <div class="stat-row"><span>📅 Heute fällig</span><span id="s-due">0</span></div>
+      <div class="stat-row"><span>🎓 Gelernt (Box 5)</span><span id="s-learned">0</span></div>
+    </div>
+
+    <div class="setting-block">
+      <h3>Tageslimit neue Karten</h3>
+      <input type="number" id="limit-input" min="1" max="50">
+    </div>
+
+    <div class="setting-block">
+      <h3>Sync</h3>
+      <p>Daten als JSON exportieren oder importieren.</p>
+      <button class="secondary" id="export-btn">⬇️ Export</button>
+      <button class="secondary" id="import-btn">⬆️ Import</button>
+      <input type="file" id="import-file" accept="application/json" hidden>
+    </div>
+
+    <div class="setting-block">
+      <h3>Zurücksetzen</h3>
+      <p>Löscht alle Karten und Einstellungen.</p>
+      <button class="danger" id="reset-btn">🗑️ Alles löschen</button>
+    </div>
+  </section>
+
+</div>
+
+<nav>
+  <button data-screen="discover" class="active">🏠<span class="lbl">Discover</span></button>
+  <button data-screen="quiz">🎯<span class="lbl">Quiz</span></button>
+  <button data-screen="add">➕<span class="lbl">Add</span></button>
+  <button data-screen="settings">⚙️<span class="lbl">Settings</span></button>
+</nav>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ---------- Storage & Model ---------- */
+const STORAGE_KEY = 'vocascroll-v1';
+const INTERVALS = {1:1, 2:3, 3:7, 4:14, 5:30};
+const todayISO = () => new Date().toISOString().slice(0,10);
+const addDays = (n) => { const d = new Date(); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); };
+const uid = () => Math.random().toString(36).slice(2,10) + Date.now().toString(36);
+
+const SEED = [
+  ['hostis, hostis','m','noun','Feind','Hostie als Feind der Vampire 🧛'],
+  ['flumen, fluminis','n','noun','Fluss','Flummi hüpft den Fluss entlang 🏀'],
+  ['dux, ducis','m','noun','Anführer, Feldherr','Donald Duck als Anführer der Entenarmee 🦆'],
+  ['iter, itineris','n','noun','Weg, Marsch, Reise','IKEA-Wagen wird auf dem Weg geschoben 🛒'],
+  ['gens, gentis','f','noun','Volk, Stamm, Sippe','Gentleman trifft sein Volk 🎩'],
+  ['petere, peto, petivi, petitum','-','verb','streben nach, angreifen, bitten','Peter petzt und bittet 👉'],
+  ['impedire, impedio, impedivi, impeditum','-','verb','hindern, behindern','Pediküre hindert beim Laufen 🦶'],
+  ['fortis, forte','-','adj','tapfer, stark','Fort (Burg) ist stark gebaut 🏰'],
+  ['virtus, virtutis','f','noun','Tapferkeit, Tugend','Virus der Tapferkeit 🦠'],
+  ['timor, timoris','m','noun','Furcht, Angst','Timor zittert vor Angst 😰'],
+];
+
+function defaultData(){
+  const today = todayISO();
+  return {
+    cards: SEED.map(([lat,gender,type,de,mn]) => ({
+      id: uid(), lat, gender, type, de, mnemonic: mn,
+      example: '', exampleDe: '', lesson: 'Caesar L8',
+      box: 1, nextReview: today, created: today,
+      lastReview: null, timesCorrect: 0, timesWrong: 0
+    })),
+    settings: { dailyNewLimit: 5, streak: 0, lastOpened: today }
+  };
+}
+
+let data;
+function load(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw){ data = defaultData(); save(); return; }
+    data = JSON.parse(raw);
+    if(!data.cards) data = defaultData();
+  }catch(e){ data = defaultData(); }
+}
+function save(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
+
+/* Streak update */
+function updateStreak(){
+  const t = todayISO();
+  const last = data.settings.lastOpened;
+  if(last === t) return;
+  const diff = (new Date(t) - new Date(last)) / 86400000;
+  if(diff === 1) data.settings.streak += 1;
+  else if(diff > 1) data.settings.streak = 1;
+  else if(!data.settings.streak) data.settings.streak = 1;
+  data.settings.lastOpened = t;
+  save();
+}
+
+/* ---------- Toast ---------- */
+const toastEl = document.getElementById('toast');
+let toastTimer;
+function toast(msg){
+  toastEl.textContent = msg;
+  toastEl.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove('show'), 1800);
+}
+
+/* ---------- Navigation ---------- */
+const screens = document.querySelectorAll('.screen');
+const navBtns = document.querySelectorAll('nav button');
+function showScreen(name){
+  screens.forEach(s => s.classList.toggle('active', s.id === name));
+  navBtns.forEach(b => b.classList.toggle('active', b.dataset.screen === name));
+  if(name === 'discover') renderDiscover();
+  if(name === 'quiz') startQuiz();
+  if(name === 'settings') renderSettings();
+}
+navBtns.forEach(b => b.addEventListener('click', () => showScreen(b.dataset.screen)));
+
+/* ---------- Discover ---------- */
+const discoverEl = document.getElementById('discover');
+function genderLabel(g){ return {m:'maskulin',f:'feminin',n:'neutrum','-':''}[g] || ''; }
+function typeLabel(t){ return {noun:'Nomen',verb:'Verb',adj:'Adjektiv',adv:'Adverb',prep:'Präposition',other:'Sonstiges'}[t] || t; }
+
+function discoverOrder(){
+  const today = todayISO();
+  const due = data.cards.filter(c => c.nextReview <= today && c.lastReview);
+  const fresh = data.cards.filter(c => !c.lastReview);
+  const rest = data.cards.filter(c => c.nextReview > today && c.lastReview);
+  const shuffled = rest.sort(() => Math.random() - 0.5);
+  return [...due, ...fresh, ...shuffled];
+}
+
+function cardHTML(c){
+  const tag = [typeLabel(c.type), c.gender !== '-' ? genderLabel(c.gender) : '', c.lesson].filter(Boolean).join(' · ');
+  const example = c.example ? `<div class="example"><span class="lat">${escapeHtml(c.example)}</span>${escapeHtml(c.exampleDe || '')}</div>` : '';
+  return `
+    <div class="card" data-id="${c.id}">
+      <div class="face front">
+        <span class="tag">${escapeHtml(tag)}</span>
+        <div class="lat-big lat">${escapeHtml(c.lat)}</div>
+        ${c.gender !== '-' ? `<div class="gender">${genderLabel(c.gender)}</div>` : ''}
+        <div class="mnemonic">💡 ${escapeHtml(c.mnemonic)}</div>
+        ${example}
+        <div class="hint">Tippen für Übersetzung · Hochwischen für nächste</div>
+      </div>
+      <div class="face back">
+        <span class="tag">Übersetzung</span>
+        <div class="de-big">${escapeHtml(c.de)}</div>
+        <div class="lat-big lat" style="font-size:1.6rem;color:#888">${escapeHtml(c.lat)}</div>
+        <div class="mnemonic">💡 ${escapeHtml(c.mnemonic)}</div>
+        ${example}
+        <div class="hint">Tippen zum Zurückdrehen</div>
+      </div>
+    </div>`;
+}
+
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function renderDiscover(){
+  const list = discoverOrder();
+  if(!list.length){
+    discoverEl.innerHTML = `<div class="empty"><div class="em">📭</div><div>Noch keine Karten.<br>Füg welche unter ➕ hinzu.</div></div>`;
+    return;
+  }
+  discoverEl.innerHTML = list.map(c => `<div class="reel">${cardHTML(c)}</div>`).join('');
+  discoverEl.scrollTop = 0;
+  discoverEl.querySelectorAll('.card').forEach(card => {
+    card.addEventListener('click', () => {
+      card.classList.toggle('flipped');
+      if(navigator.vibrate) navigator.vibrate(15);
+    });
+  });
+  let lastScroll = 0;
+  discoverEl.addEventListener('scroll', () => {
+    const s = discoverEl.scrollTop;
+    if(Math.abs(s - lastScroll) > 100){
+      if(navigator.vibrate) navigator.vibrate(30);
+      lastScroll = s;
+    }
+  }, {passive:true});
+}
+
+/* ---------- Quiz ---------- */
+const quizArea = document.getElementById('quiz-area');
+const quizBtns = document.getElementById('quiz-buttons');
+const quizProgress = document.getElementById('quiz-progress');
+const quizStats = document.getElementById('quiz-stats');
+let quizQueue = [], quizIdx = 0, quizCorrect = 0, quizWrong = 0, quizFlipped = false;
+
+function startQuiz(){
+  const today = todayISO();
+  const due = data.cards.filter(c => c.nextReview <= today);
+  const newCards = due.filter(c => !c.lastReview).slice(0, data.settings.dailyNewLimit);
+  const reviewing = due.filter(c => c.lastReview);
+  quizQueue = [...reviewing, ...newCards].sort(() => Math.random() - 0.5);
+  quizIdx = 0; quizCorrect = 0; quizWrong = 0;
+  renderQuiz();
+}
+
+function renderQuiz(){
+  quizStats.textContent = `✅ ${quizCorrect}  ❌ ${quizWrong}`;
+  if(!quizQueue.length){
+    quizProgress.textContent = '';
+    quizArea.innerHTML = `<div class="empty"><div class="em">🎉</div><div>Keine Karten fällig.<br>Komm morgen wieder!</div></div>`;
+    quizBtns.innerHTML = '';
+    return;
+  }
+  if(quizIdx >= quizQueue.length){
+    quizProgress.textContent = 'Fertig';
+    quizArea.innerHTML = `<div class="empty">
+      <div class="em">🏆</div>
+      <div style="font-size:1.3rem;color:#fff">Geschafft!</div>
+      <div>✅ ${quizCorrect} richtig · ❌ ${quizWrong} falsch</div>
+      <div>🔥 Streak: ${data.settings.streak}</div>
+    </div>`;
+    quizBtns.innerHTML = '';
+    return;
+  }
+  const c = quizQueue[quizIdx];
+  quizFlipped = false;
+  quizProgress.textContent = `${quizIdx+1}/${quizQueue.length}`;
+  quizArea.innerHTML = `
+    <div class="qcard" id="qcard">
+      <div class="swipe-ind ind-no">NEIN</div>
+      <div class="swipe-ind ind-yes">JA</div>
+      <span class="tag">${escapeHtml([typeLabel(c.type), c.gender !== '-' ? genderLabel(c.gender) : ''].filter(Boolean).join(' · '))}</span>
+      <div class="lat-big lat" style="text-align:center;margin:auto 0">${escapeHtml(c.lat)}</div>
+      <div id="qback" style="display:none">
+        <div class="de-big" style="text-align:center">${escapeHtml(c.de)}</div>
+        <div class="mnemonic">💡 ${escapeHtml(c.mnemonic)}</div>
+        ${c.example ? `<div class="example"><span class="lat">${escapeHtml(c.example)}</span>${escapeHtml(c.exampleDe||'')}</div>` : ''}
+      </div>
+    </div>`;
+  quizBtns.innerHTML = `<button class="btn-show" id="btn-show">Antwort zeigen</button>`;
+  document.getElementById('btn-show').onclick = flipQuiz;
+  setupSwipe();
+}
+
+function flipQuiz(){
+  quizFlipped = true;
+  document.getElementById('qback').style.display = 'block';
+  quizBtns.innerHTML = `
+    <button class="btn-no" id="btn-no">❌ Wusste ich nicht</button>
+    <button class="btn-yes" id="btn-yes">✅ Wusste ich</button>`;
+  document.getElementById('btn-no').onclick = () => answer(false);
+  document.getElementById('btn-yes').onclick = () => answer(true);
+}
+
+function answer(correct){
+  const c = quizQueue[quizIdx];
+  const card = data.cards.find(x => x.id === c.id);
+  if(!card) return;
+  card.lastReview = todayISO();
+  if(correct){
+    card.timesCorrect++;
+    card.box = Math.min(5, card.box + 1);
+    card.nextReview = addDays(INTERVALS[card.box]);
+    quizCorrect++;
+  } else {
+    card.timesWrong++;
+    card.box = 1;
+    card.nextReview = addDays(1);
+    quizWrong++;
+  }
+  save();
+  if(navigator.vibrate) navigator.vibrate(correct ? 20 : [40,30,40]);
+  quizIdx++;
+  renderQuiz();
+}
+
+function setupSwipe(){
+  const card = document.getElementById('qcard');
+  if(!card) return;
+  let startX = 0, startY = 0, dx = 0, dy = 0, dragging = false;
+  const indYes = card.querySelector('.ind-yes');
+  const indNo = card.querySelector('.ind-no');
+
+  function start(x, y){ startX = x; startY = y; dragging = true; card.classList.add('dragging'); }
+  function move(x, y){
+    if(!dragging) return;
+    dx = x - startX; dy = y - startY;
+    if(!quizFlipped){
+      if(Math.abs(dx) > 8 || Math.abs(dy) > 8){
+        dragging = false; card.classList.remove('dragging'); card.style.transform = '';
+      }
+      return;
+    }
+    card.style.transform = `translate(${dx}px,${dy*0.3}px) rotate(${dx*0.05}deg)`;
+    const op = Math.min(1, Math.abs(dx)/120);
+    indYes.style.opacity = dx > 0 ? op : 0;
+    indNo.style.opacity = dx < 0 ? op : 0;
+  }
+  function end(){
+    if(!dragging) return;
+    dragging = false; card.classList.remove('dragging');
+    if(quizFlipped && Math.abs(dx) > 100){
+      const dir = dx > 0 ? 1 : -1;
+      card.style.transform = `translate(${dir*600}px,${dy}px) rotate(${dir*30}deg)`;
+      card.style.opacity = '0';
+      setTimeout(() => answer(dir > 0), 200);
+    } else {
+      card.style.transform = '';
+      indYes.style.opacity = 0; indNo.style.opacity = 0;
+    }
+    dx = 0; dy = 0;
+  }
+
+  card.addEventListener('touchstart', e => start(e.touches[0].clientX, e.touches[0].clientY), {passive:true});
+  card.addEventListener('touchmove', e => move(e.touches[0].clientX, e.touches[0].clientY), {passive:true});
+  card.addEventListener('touchend', end);
+  card.addEventListener('mousedown', e => { start(e.clientX, e.clientY); e.preventDefault(); });
+  window.addEventListener('mousemove', e => { if(dragging) move(e.clientX, e.clientY); });
+  window.addEventListener('mouseup', end);
+}
+
+/* Keyboard shortcuts for quiz */
+document.addEventListener('keydown', e => {
+  if(!document.getElementById('quiz').classList.contains('active')) return;
+  if(e.key === ' ' && !quizFlipped){ e.preventDefault(); flipQuiz(); }
+  else if(quizFlipped && (e.key === 'ArrowRight' || e.key === 'y')) answer(true);
+  else if(quizFlipped && (e.key === 'ArrowLeft' || e.key === 'n')) answer(false);
+});
+
+/* ---------- Add ---------- */
+document.getElementById('add-form').addEventListener('submit', e => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const card = {
+    id: uid(),
+    lat: fd.get('lat').trim(),
+    gender: fd.get('gender'),
+    type: fd.get('type'),
+    de: fd.get('de').trim(),
+    mnemonic: fd.get('mnemonic').trim(),
+    example: fd.get('example').trim(),
+    exampleDe: fd.get('exampleDe').trim(),
+    lesson: fd.get('lesson').trim(),
+    box: 1, nextReview: todayISO(), created: todayISO(),
+    lastReview: null, timesCorrect: 0, timesWrong: 0
+  };
+  if(!card.lat || !card.de || !card.mnemonic){ toast('Felder fehlen'); return; }
+  data.cards.push(card);
+  save();
+  e.target.reset();
+  toast('✅ Gespeichert');
+});
+
+/* ---------- Settings ---------- */
+function renderSettings(){
+  const today = todayISO();
+  document.getElementById('s-streak').textContent = data.settings.streak;
+  document.getElementById('s-total').textContent = data.cards.length;
+  document.getElementById('s-due').textContent = data.cards.filter(c => c.nextReview <= today).length;
+  document.getElementById('s-learned').textContent = data.cards.filter(c => c.box === 5).length;
+  document.getElementById('limit-input').value = data.settings.dailyNewLimit;
+}
+document.getElementById('limit-input').addEventListener('change', e => {
+  const v = Math.max(1, Math.min(50, parseInt(e.target.value) || 5));
+  data.settings.dailyNewLimit = v;
+  e.target.value = v;
+  save();
+  toast('Gespeichert');
+});
+document.getElementById('export-btn').addEventListener('click', () => {
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `vocascroll-${todayISO()}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+});
+document.getElementById('import-btn').addEventListener('click', () => document.getElementById('import-file').click());
+document.getElementById('import-file').addEventListener('change', e => {
+  const f = e.target.files[0];
+  if(!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try{
+      const obj = JSON.parse(r.result);
+      if(!obj.cards || !Array.isArray(obj.cards)) throw new Error('Format');
+      if(!confirm(`${obj.cards.length} Karten importieren? Bestehende werden überschrieben.`)) return;
+      data = obj;
+      if(!data.settings) data.settings = { dailyNewLimit: 5, streak: 0, lastOpened: todayISO() };
+      save();
+      renderSettings();
+      toast('✅ Importiert');
+    }catch(err){ toast('❌ Ungültige Datei'); }
+  };
+  r.readAsText(f);
+  e.target.value = '';
+});
+document.getElementById('reset-btn').addEventListener('click', () => {
+  if(!confirm('Wirklich ALLES löschen? Das kann nicht rückgängig gemacht werden.')) return;
+  if(!confirm('Sicher? Letzte Warnung.')) return;
+  localStorage.removeItem(STORAGE_KEY);
+  data = defaultData();
+  save();
+  renderSettings();
+  toast('Zurückgesetzt');
+});
+
+/* ---------- Boot ---------- */
+load();
+updateStreak();
+renderDiscover();
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(()=>{}));
+}
+</script>
+</body>
+</html>
