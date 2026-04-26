@@ -243,7 +243,12 @@ function toast(msg){
 /* ---------- Navigation ---------- */
 const screens = document.querySelectorAll('.screen');
 const navBtns = document.querySelectorAll('nav button');
+let currentScreen = 'discover';
 function showScreen(name){
+  if(name === currentScreen) return;
+  if(currentScreen === 'quiz') resetQuizState();
+  if(currentScreen === 'discover') discoverEl.innerHTML = '';
+  currentScreen = name;
   screens.forEach(s => s.classList.toggle('active', s.id === name));
   navBtns.forEach(b => b.classList.toggle('active', b.dataset.screen === name));
   if(name === 'discover') renderDiscover();
@@ -292,6 +297,23 @@ function cardHTML(c){
 
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
+let discoverLastScroll = 0;
+discoverEl.addEventListener('scroll', () => {
+  if(currentScreen !== 'discover') return;
+  const s = discoverEl.scrollTop;
+  if(Math.abs(s - discoverLastScroll) > 100){
+    if(navigator.vibrate) navigator.vibrate(30);
+    discoverLastScroll = s;
+  }
+}, {passive:true});
+
+discoverEl.addEventListener('click', e => {
+  const card = e.target.closest('.card');
+  if(!card) return;
+  card.classList.toggle('flipped');
+  if(navigator.vibrate) navigator.vibrate(15);
+});
+
 function renderDiscover(){
   const list = discoverOrder();
   if(!list.length){
@@ -300,20 +322,7 @@ function renderDiscover(){
   }
   discoverEl.innerHTML = list.map(c => `<div class="reel">${cardHTML(c)}</div>`).join('');
   discoverEl.scrollTop = 0;
-  discoverEl.querySelectorAll('.card').forEach(card => {
-    card.addEventListener('click', () => {
-      card.classList.toggle('flipped');
-      if(navigator.vibrate) navigator.vibrate(15);
-    });
-  });
-  let lastScroll = 0;
-  discoverEl.addEventListener('scroll', () => {
-    const s = discoverEl.scrollTop;
-    if(Math.abs(s - lastScroll) > 100){
-      if(navigator.vibrate) navigator.vibrate(30);
-      lastScroll = s;
-    }
-  }, {passive:true});
+  discoverLastScroll = 0;
 }
 
 /* ---------- Quiz ---------- */
@@ -369,7 +378,6 @@ function renderQuiz(){
     </div>`;
   quizBtns.innerHTML = `<button class="btn-show" id="btn-show">Antwort zeigen</button>`;
   document.getElementById('btn-show').onclick = flipQuiz;
-  setupSwipe();
 }
 
 function flipQuiz(){
@@ -404,50 +412,75 @@ function answer(correct){
   renderQuiz();
 }
 
-function setupSwipe(){
-  const card = document.getElementById('qcard');
-  if(!card) return;
-  let startX = 0, startY = 0, dx = 0, dy = 0, dragging = false;
+/* Swipe state — listeners bound once globally to avoid leaks */
+let swipeStartX = 0, swipeStartY = 0, swipeDx = 0, swipeDy = 0, swipeDragging = false;
+
+function getQCard(){ return document.getElementById('qcard'); }
+
+function swipeStart(x, y){
+  if(currentScreen !== 'quiz') return;
+  const card = getQCard(); if(!card) return;
+  swipeStartX = x; swipeStartY = y; swipeDragging = true;
+  card.classList.add('dragging');
+}
+function swipeMove(x, y){
+  if(!swipeDragging) return;
+  const card = getQCard(); if(!card){ swipeDragging = false; return; }
+  swipeDx = x - swipeStartX; swipeDy = y - swipeStartY;
+  if(!quizFlipped){
+    if(Math.abs(swipeDx) > 8 || Math.abs(swipeDy) > 8){
+      swipeDragging = false; card.classList.remove('dragging'); card.style.transform = '';
+    }
+    return;
+  }
+  card.style.transform = `translate(${swipeDx}px,${swipeDy*0.3}px) rotate(${swipeDx*0.05}deg)`;
+  const op = Math.min(1, Math.abs(swipeDx)/120);
   const indYes = card.querySelector('.ind-yes');
   const indNo = card.querySelector('.ind-no');
-
-  function start(x, y){ startX = x; startY = y; dragging = true; card.classList.add('dragging'); }
-  function move(x, y){
-    if(!dragging) return;
-    dx = x - startX; dy = y - startY;
-    if(!quizFlipped){
-      if(Math.abs(dx) > 8 || Math.abs(dy) > 8){
-        dragging = false; card.classList.remove('dragging'); card.style.transform = '';
-      }
-      return;
-    }
-    card.style.transform = `translate(${dx}px,${dy*0.3}px) rotate(${dx*0.05}deg)`;
-    const op = Math.min(1, Math.abs(dx)/120);
-    indYes.style.opacity = dx > 0 ? op : 0;
-    indNo.style.opacity = dx < 0 ? op : 0;
-  }
-  function end(){
-    if(!dragging) return;
-    dragging = false; card.classList.remove('dragging');
-    if(quizFlipped && Math.abs(dx) > 100){
-      const dir = dx > 0 ? 1 : -1;
-      card.style.transform = `translate(${dir*600}px,${dy}px) rotate(${dir*30}deg)`;
-      card.style.opacity = '0';
-      setTimeout(() => answer(dir > 0), 200);
-    } else {
-      card.style.transform = '';
-      indYes.style.opacity = 0; indNo.style.opacity = 0;
-    }
-    dx = 0; dy = 0;
-  }
-
-  card.addEventListener('touchstart', e => start(e.touches[0].clientX, e.touches[0].clientY), {passive:true});
-  card.addEventListener('touchmove', e => move(e.touches[0].clientX, e.touches[0].clientY), {passive:true});
-  card.addEventListener('touchend', end);
-  card.addEventListener('mousedown', e => { start(e.clientX, e.clientY); e.preventDefault(); });
-  window.addEventListener('mousemove', e => { if(dragging) move(e.clientX, e.clientY); });
-  window.addEventListener('mouseup', end);
+  if(indYes) indYes.style.opacity = swipeDx > 0 ? op : 0;
+  if(indNo) indNo.style.opacity = swipeDx < 0 ? op : 0;
 }
+function swipeEnd(){
+  if(!swipeDragging) return;
+  swipeDragging = false;
+  const card = getQCard();
+  if(!card){ swipeDx = 0; swipeDy = 0; return; }
+  card.classList.remove('dragging');
+  if(quizFlipped && Math.abs(swipeDx) > 100){
+    const dir = swipeDx > 0 ? 1 : -1;
+    card.style.transform = `translate(${dir*600}px,${swipeDy}px) rotate(${dir*30}deg)`;
+    card.style.opacity = '0';
+    setTimeout(() => answer(dir > 0), 200);
+  } else {
+    card.style.transform = '';
+    const indYes = card.querySelector('.ind-yes');
+    const indNo = card.querySelector('.ind-no');
+    if(indYes) indYes.style.opacity = 0;
+    if(indNo) indNo.style.opacity = 0;
+  }
+  swipeDx = 0; swipeDy = 0;
+}
+
+function resetQuizState(){
+  swipeDragging = false;
+  swipeDx = 0; swipeDy = 0;
+  quizFlipped = false;
+  quizArea.innerHTML = '';
+  quizBtns.innerHTML = '';
+  quizProgress.textContent = '';
+  quizStats.textContent = '✅ 0  ❌ 0';
+}
+
+quizArea.addEventListener('touchstart', e => {
+  if(e.target.closest('#qcard')) swipeStart(e.touches[0].clientX, e.touches[0].clientY);
+}, {passive:true});
+quizArea.addEventListener('touchmove', e => swipeMove(e.touches[0].clientX, e.touches[0].clientY), {passive:true});
+quizArea.addEventListener('touchend', swipeEnd);
+quizArea.addEventListener('mousedown', e => {
+  if(e.target.closest('#qcard')){ swipeStart(e.clientX, e.clientY); e.preventDefault(); }
+});
+window.addEventListener('mousemove', e => { if(swipeDragging) swipeMove(e.clientX, e.clientY); });
+window.addEventListener('mouseup', swipeEnd);
 
 /* Keyboard shortcuts for quiz */
 document.addEventListener('keydown', e => {
