@@ -1,0 +1,1526 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#0d0d1a">
+<link rel="manifest" href="calendar-manifest.json">
+<title>LifeQuest</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;overscroll-behavior:none}
+body{display:flex;flex-direction:column}
+:root{
+  --bg:#0d0d1a;
+  --surface:#141428;
+  --surface2:#1c1c38;
+  --border:#252548;
+  --accent:#7c3aed;
+  --accent2:#a855f7;
+  --gold:#f59e0b;
+  --green:#10b981;
+  --red:#ef4444;
+  --blue:#3b82f6;
+  --text:#e2e8f0;
+  --muted:#64748b;
+  --boss:#dc2626;
+}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+input,select,textarea{font:inherit;color:var(--text);background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:.7rem .9rem;width:100%}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent)}
+textarea{resize:vertical;min-height:70px}
+label{display:block;font-size:.85rem;color:var(--muted);margin-bottom:.3rem;margin-top:.9rem}
+
+#app{flex:1;overflow:hidden;position:relative}
+.screen{position:absolute;inset:0;display:none;flex-direction:column}
+.screen.active{display:flex}
+
+nav{display:flex;justify-content:space-around;align-items:center;padding:.6rem 0 calc(.6rem + env(safe-area-inset-bottom));background:rgba(13,13,26,.92);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-top:1px solid var(--border);z-index:100;flex-shrink:0}
+nav button{font-size:1.45rem;padding:.4rem .9rem;border-radius:12px;opacity:.45;transition:opacity .2s,background .2s}
+nav button.active{opacity:1;background:var(--surface2)}
+nav button .lbl{display:block;font-size:.6rem;margin-top:2px;color:var(--muted)}
+nav button.active .lbl{color:var(--accent2)}
+
+/* XP strip */
+.xp-strip{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:.65rem 1rem;margin-bottom:.5rem;display:flex;align-items:center;gap:.8rem}
+.xp-avatar{font-size:1.9rem;line-height:1;flex-shrink:0}
+.xp-info{flex:1;min-width:0}
+.xp-top{display:flex;justify-content:space-between;font-size:.8rem;margin-bottom:.3rem}
+.xp-name{font-weight:700}
+.xp-level{color:var(--gold);font-weight:800}
+.xp-bar-bg{background:var(--surface2);border-radius:999px;height:6px;overflow:hidden}
+.xp-bar-fill{background:linear-gradient(90deg,var(--accent),var(--accent2));height:100%;border-radius:999px;transition:width .5s ease}
+.xp-streak{font-size:.85rem;color:var(--gold);font-weight:700;flex-shrink:0}
+
+/* === WEEK SCREEN === */
+#week{display:flex;flex-direction:column}
+.week-header{padding:.8rem 1rem .4rem;flex-shrink:0}
+.week-title-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:.7rem}
+.week-title-row h2{font-size:1.15rem;font-weight:700}
+.week-nav{display:flex;gap:.4rem}
+.week-nav button{width:32px;height:32px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);font-size:1rem;display:flex;align-items:center;justify-content:center;color:var(--text)}
+.week-nav .btn-today{width:auto;padding:0 .6rem;font-size:.75rem;font-weight:600}
+
+.day-pills{display:flex;gap:.4rem;overflow-x:auto;scrollbar-width:none;padding-bottom:.3rem}
+.day-pills::-webkit-scrollbar{display:none}
+.day-pill{flex-shrink:0;width:46px;height:60px;border-radius:14px;background:var(--surface);border:1px solid var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;transition:all .2s;position:relative}
+.day-pill .wday{font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.day-pill .dnum{font-size:1.2rem;font-weight:700}
+.day-pill.today{border-color:var(--accent);background:rgba(124,58,237,.12)}
+.day-pill.selected{background:var(--accent);border-color:var(--accent)}
+.day-pill.selected .wday,.day-pill.selected .dnum{color:#fff}
+.day-pill .dot{width:5px;height:5px;border-radius:50%;background:var(--gold);position:absolute;bottom:5px}
+
+.day-events{flex:1;overflow-y:auto;padding:.5rem 1rem 1rem;scrollbar-width:none}
+.day-events::-webkit-scrollbar{display:none}
+.day-date-label{font-size:.82rem;color:var(--muted);font-weight:500;padding:.3rem 0 .5rem;position:sticky;top:0;background:var(--bg);z-index:1}
+
+.event-item{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:.75rem 1rem;margin-bottom:.5rem;display:flex;align-items:center;gap:.75rem;cursor:pointer;transition:opacity .2s;position:relative;overflow:hidden}
+.event-item::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px}
+.event-item.type-boss::before{background:var(--boss)}
+.event-item.type-event::before{background:var(--accent)}
+.event-item.type-daily::before{background:var(--green)}
+.event-item.type-reminder::before{background:var(--gold)}
+.event-item.completed{opacity:.38}
+.event-item.completed .event-title{text-decoration:line-through}
+.event-icon{font-size:1.4rem;flex-shrink:0}
+.event-body{flex:1;min-width:0}
+.event-title{font-weight:600;font-size:.93rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.event-sub{font-size:.76rem;color:var(--muted);margin-top:.12rem;display:flex;gap:.6rem}
+.event-xp{color:var(--gold);font-weight:700}
+.event-check{width:28px;height:28px;border-radius:8px;border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:.9rem;flex-shrink:0;transition:all .2s}
+.event-item.completed .event-check{background:var(--green);border-color:var(--green)}
+
+.empty-day{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.7rem;color:var(--muted);text-align:center;padding:3rem 1rem;flex:1}
+.empty-day .em{font-size:3rem}
+
+/* === QUESTS === */
+#quests{display:flex;flex-direction:column}
+.quests-header{padding:.8rem 1rem .4rem;flex-shrink:0}
+.quests-header h1{font-size:1.2rem;font-weight:700;margin-bottom:.7rem}
+.quest-tabs{display:flex;gap:.4rem}
+.quest-tab{padding:.38rem .85rem;border-radius:999px;font-size:.8rem;font-weight:600;background:var(--surface);border:1px solid var(--border);color:var(--muted);transition:all .2s}
+.quest-tab.active{background:var(--accent);border-color:var(--accent);color:#fff}
+
+.quest-list{flex:1;overflow-y:auto;padding:.5rem 1rem 80px;scrollbar-width:none}
+.quest-list::-webkit-scrollbar{display:none}
+.quest-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:.9rem 1rem;margin-bottom:.55rem;position:relative;overflow:hidden;transition:opacity .2s}
+.quest-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px}
+.quest-card.diff-easy::before{background:var(--green)}
+.quest-card.diff-medium::before{background:var(--gold)}
+.quest-card.diff-hard::before{background:var(--red)}
+.quest-card.diff-legendary::before{background:linear-gradient(180deg,#a855f7,#f59e0b)}
+.quest-card.done{opacity:.35}
+.quest-card.done .quest-title{text-decoration:line-through}
+.quest-top{display:flex;align-items:flex-start;gap:.6rem;justify-content:space-between}
+.quest-title{font-weight:600;font-size:.92rem;flex:1;line-height:1.35}
+.qbadge{font-size:.68rem;padding:.18rem .5rem;border-radius:999px;font-weight:700;flex-shrink:0;white-space:nowrap}
+.qbadge-daily{background:rgba(16,185,129,.18);color:#10b981;border:1px solid rgba(16,185,129,.3)}
+.qbadge-main{background:rgba(124,58,237,.18);color:#a855f7;border:1px solid rgba(124,58,237,.3)}
+.qbadge-side{background:rgba(100,116,139,.18);color:#94a3b8;border:1px solid rgba(100,116,139,.3)}
+.quest-desc{font-size:.8rem;color:var(--muted);margin-top:.3rem;line-height:1.4}
+.quest-footer{display:flex;align-items:center;justify-content:space-between;margin-top:.6rem}
+.quest-xp{color:var(--gold);font-weight:700;font-size:.82rem}
+.quest-deadline{font-size:.76rem;color:var(--muted)}
+.quest-deadline.over{color:var(--red)}
+.complete-btn{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:.28rem .65rem;font-size:.78rem;font-weight:600;color:var(--green);transition:background .2s}
+
+/* === PROFILE === */
+#profile{overflow-y:auto;padding:1rem 1rem 2rem;scrollbar-width:none}
+#profile::-webkit-scrollbar{display:none}
+.profile-hero{background:linear-gradient(135deg,#1a1035,#1c1c38);border:1px solid var(--border);border-radius:20px;padding:1.5rem;margin-bottom:.7rem;text-align:center}
+.p-avatar{font-size:4rem;margin-bottom:.4rem}
+.p-name{font-size:1.35rem;font-weight:700}
+.p-title{color:var(--accent2);font-size:.88rem;margin-bottom:.8rem}
+.p-level-badge{display:inline-block;background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.35);color:var(--gold);padding:.3rem .9rem;border-radius:999px;font-weight:800;font-size:.9rem;margin-bottom:.9rem}
+.p-xp-bar{background:var(--surface2);border-radius:999px;height:10px;overflow:hidden;margin-bottom:.35rem}
+.p-xp-fill{background:linear-gradient(90deg,var(--accent),var(--accent2));height:100%;border-radius:999px;transition:width .5s}
+.p-xp-lbl{font-size:.78rem;color:var(--muted)}
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:.7rem}
+.stat-box{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:.8rem;text-align:center}
+.stat-val{font-size:1.55rem;font-weight:800;color:var(--accent2)}
+.stat-key{font-size:.73rem;color:var(--muted);margin-top:.15rem}
+.ach-header{font-size:.95rem;font-weight:700;margin-bottom:.55rem}
+.ach-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem}
+.ach-tile{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:.65rem .3rem;text-align:center;transition:all .2s}
+.ach-tile.locked{opacity:.25;filter:grayscale(1)}
+.ach-tile.unlocked{border-color:rgba(245,158,11,.4);background:rgba(245,158,11,.07)}
+.ach-ico{font-size:1.5rem;margin-bottom:.25rem}
+.ach-lbl{font-size:.62rem;color:var(--muted);line-height:1.3}
+
+/* === ADD === */
+#add-screen{overflow-y:auto;padding:1rem 1rem 3rem;scrollbar-width:none}
+#add-screen::-webkit-scrollbar{display:none}
+#add-screen h1{font-size:1.2rem;font-weight:700;margin-bottom:.9rem}
+.type-tabs{display:flex;gap:.4rem;margin-bottom:1rem}
+.type-tab{flex:1;padding:.55rem;border-radius:10px;font-size:.8rem;font-weight:600;background:var(--surface);border:1px solid var(--border);color:var(--muted);text-align:center;transition:all .2s}
+.type-tab.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.row{display:flex;gap:.6rem}
+.row>*{flex:1}
+.save-btn{margin-top:1.3rem;width:100%;background:var(--accent);color:#fff;padding:1rem;border-radius:14px;font-weight:700;font-size:.97rem}
+.save-btn:disabled{opacity:.4}
+
+/* FAB */
+.add-fab{position:fixed;bottom:calc(68px + env(safe-area-inset-bottom));right:1.1rem;width:50px;height:50px;border-radius:999px;background:var(--accent);color:#fff;font-size:1.55rem;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 22px rgba(124,58,237,.55);z-index:50;transition:transform .15s;line-height:1}
+.add-fab:active{transform:scale(.9)}
+
+/* Toast */
+.toast{position:fixed;bottom:84px;left:50%;transform:translateX(-50%);background:var(--accent);color:#fff;padding:.65rem 1.2rem;border-radius:999px;font-size:.88rem;z-index:300;opacity:0;transition:opacity .2s;pointer-events:none;white-space:nowrap;max-width:90vw;overflow:hidden;text-overflow:ellipsis}
+.toast.show{opacity:1}
+
+/* Level-up overlay */
+.levelup-overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:400;display:none;align-items:center;justify-content:center;flex-direction:column;gap:.8rem;text-align:center;padding:2rem}
+.levelup-overlay.show{display:flex}
+.lu-fireworks{font-size:2.5rem;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.lu-num{font-size:5.5rem;font-weight:900;line-height:1;background:linear-gradient(135deg,var(--gold),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.lu-txt{font-size:1.2rem;font-weight:700;color:var(--text)}
+.lu-sub{font-size:.9rem;color:var(--muted)}
+.lu-btn{margin-top:.6rem;background:var(--accent);color:#fff;padding:.8rem 2.2rem;border-radius:999px;font-weight:700;font-size:1rem}
+
+/* XP pop */
+.xp-pop{position:fixed;pointer-events:none;font-weight:900;font-size:1.15rem;color:var(--gold);z-index:350;text-shadow:0 0 10px rgba(245,158,11,.6);animation:xpFloat 1.1s ease-out forwards}
+@keyframes xpFloat{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(-70px)}}
+
+/* === BILDSCHIRMZEIT === */
+#screentime{overflow-y:auto;padding:1rem 1rem 2rem;scrollbar-width:none}
+#screentime::-webkit-scrollbar{display:none}
+.st-card{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:1.1rem;margin-bottom:.7rem}
+.st-card h2{font-size:.95rem;font-weight:700;margin-bottom:.9rem;display:flex;align-items:center;gap:.4rem}
+.st-ring-wrap{display:flex;flex-direction:column;align-items:center;gap:.5rem;margin-bottom:1rem}
+.st-ring-label{font-size:.78rem;color:var(--muted);text-align:center}
+.st-goal-row{display:flex;align-items:center;justify-content:space-between;padding:.5rem 0;border-top:1px solid var(--border);margin-top:.5rem}
+.st-goal-row span{font-size:.85rem;color:var(--muted)}
+.st-goal-val{font-weight:700;color:var(--text)}
+.st-edit-btn{font-size:.78rem;color:var(--accent2);font-weight:600;padding:.2rem .6rem;border-radius:6px;background:rgba(168,85,247,.1);border:1px solid rgba(168,85,247,.25)}
+.st-input-row{display:flex;align-items:center;gap:.6rem;margin-top:.7rem}
+.st-input-row input{text-align:center;font-size:1.1rem;font-weight:700;max-width:80px}
+.st-input-row label{margin:0;font-size:.85rem;color:var(--muted);white-space:nowrap}
+.st-submit-btn{background:var(--green);color:#fff;padding:.55rem 1.1rem;border-radius:10px;font-weight:700;font-size:.85rem;white-space:nowrap}
+.st-xp-preview{margin-top:.7rem;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.25);border-radius:10px;padding:.6rem .9rem;font-size:.85rem;color:var(--gold);font-weight:600;text-align:center;min-height:2.2rem}
+.st-history-bars{display:flex;align-items:flex-end;gap:.35rem;height:60px;margin-top:.5rem}
+.st-bar-wrap{flex:1;display:flex;flex-direction:column;align-items:center;gap:.25rem}
+.st-bar{width:100%;border-radius:4px 4px 0 0;min-height:3px;transition:height .4s}
+.st-bar.under{background:var(--green)}
+.st-bar.over{background:var(--red)}
+.st-bar.empty{background:var(--surface2)}
+.st-bar-lbl{font-size:.6rem;color:var(--muted)}
+.st-stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem;margin-top:.5rem}
+.st-stat{background:var(--surface2);border-radius:10px;padding:.55rem .3rem;text-align:center}
+.st-stat .v{font-size:1.1rem;font-weight:800;color:var(--accent2)}
+.st-stat .k{font-size:.62rem;color:var(--muted);margin-top:.1rem}
+.st-done-badge{background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.3);color:var(--green);border-radius:10px;padding:.6rem;text-align:center;font-weight:600;font-size:.85rem}
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- WEEK -->
+<section id="week" class="screen active">
+  <div class="week-header">
+    <div class="xp-strip">
+      <div class="xp-avatar" id="xp-avatar">⚔️</div>
+      <div class="xp-info">
+        <div class="xp-top">
+          <span class="xp-name" id="xp-name">Held</span>
+          <span class="xp-level" id="xp-lv">Lv.1</span>
+        </div>
+        <div class="xp-bar-bg"><div class="xp-bar-fill" id="xp-bar" style="width:0%"></div></div>
+      </div>
+      <div class="xp-streak" id="xp-streak">🔥 0</div>
+    </div>
+    <div class="week-title-row">
+      <h2 id="week-label">KW --</h2>
+      <div class="week-nav">
+        <button id="week-prev">‹</button>
+        <button class="btn-today" id="week-today">Heute</button>
+        <button id="week-next">›</button>
+      </div>
+    </div>
+    <div class="day-pills" id="day-pills"></div>
+  </div>
+  <div class="day-events" id="day-events"></div>
+  <button class="add-fab" id="week-fab">＋</button>
+</section>
+
+<!-- QUESTS -->
+<section id="quests" class="screen">
+  <div class="quests-header">
+    <h1>⚔️ Quests</h1>
+    <div class="quest-tabs">
+      <button class="quest-tab active" data-qf="active">Aktiv</button>
+      <button class="quest-tab" data-qf="daily">Täglich</button>
+      <button class="quest-tab" data-qf="done">Erledigt</button>
+    </div>
+  </div>
+  <div class="quest-list" id="quest-list"></div>
+  <button class="add-fab" id="quest-fab">＋</button>
+</section>
+
+<!-- PROFILE -->
+<section id="profile" class="screen">
+  <div class="profile-hero">
+    <div class="p-avatar" id="p-avatar">⚔️</div>
+    <div class="p-name" id="p-name">Held</div>
+    <div class="p-title" id="p-title">Neuling</div>
+    <div class="p-level-badge" id="p-level">⭐ Level 1</div>
+    <div class="p-xp-bar"><div class="p-xp-fill" id="p-xp-fill" style="width:0%"></div></div>
+    <div class="p-xp-lbl" id="p-xp-lbl">0 / 100 XP</div>
+  </div>
+  <div class="stat-grid">
+    <div class="stat-box"><div class="stat-val" id="ps-streak">0</div><div class="stat-key">🔥 Streak</div></div>
+    <div class="stat-box"><div class="stat-val" id="ps-xp">0</div><div class="stat-key">⭐ Gesamt XP</div></div>
+    <div class="stat-box"><div class="stat-val" id="ps-done">0</div><div class="stat-key">✅ Erledigt</div></div>
+    <div class="stat-box"><div class="stat-val" id="ps-gold">0</div><div class="stat-key">🪙 Gold</div></div>
+  </div>
+  <div class="ach-header">🏆 Errungenschaften</div>
+  <div class="ach-grid" id="ach-grid"></div>
+</section>
+
+<!-- ADD -->
+<section id="add-screen" class="screen">
+  <h1>✨ Hinzufügen</h1>
+  <div class="type-tabs">
+    <button class="type-tab active" data-at="event">📅 Termin</button>
+    <button class="type-tab" data-at="quest">⚔️ Quest</button>
+    <button class="type-tab" data-at="reminder">🔔 Erinnerung</button>
+  </div>
+  <div id="add-form-wrap"></div>
+</section>
+
+<!-- BILDSCHIRMZEIT -->
+<section id="screentime" class="screen">
+  <div style="padding:.8rem 1rem .3rem;flex-shrink:0">
+    <h1 style="font-size:1.2rem;font-weight:700">📱 Bildschirmzeit</h1>
+  </div>
+  <div style="flex:1;overflow-y:auto;padding:.4rem 1rem 2rem;scrollbar-width:none" id="st-content"></div>
+</section>
+
+</div>
+
+<nav>
+  <button data-screen="week" class="active">🗓️<span class="lbl">Woche</span></button>
+  <button data-screen="quests">⚔️<span class="lbl">Quests</span></button>
+  <button data-screen="screentime">📱<span class="lbl">Zeit</span></button>
+  <button data-screen="profile">🧙<span class="lbl">Profil</span></button>
+  <button data-screen="add-screen">➕<span class="lbl">Neu</span></button>
+</nav>
+
+<div class="toast" id="toast"></div>
+<div class="levelup-overlay" id="levelup">
+  <div class="lu-fireworks">🎆</div>
+  <div>LEVEL UP!</div>
+  <div class="lu-num" id="lu-num">2</div>
+  <div class="lu-txt" id="lu-txt">Du bist jetzt Level 2!</div>
+  <div class="lu-sub" id="lu-sub">Neuer Titel: Abenteurer</div>
+  <button class="lu-btn" id="lu-close">Weiter ›</button>
+</div>
+
+<script>
+/* ============================================================
+   CONSTANTS & HELPERS
+   ============================================================ */
+const STORE_KEY = 'lifequest-v1';
+const todayISO = () => new Date().toISOString().slice(0,10);
+const uid = () => Math.random().toString(36).slice(2,10) + Date.now().toString(36);
+const escHtml = s => String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+const addDays = (iso, n) => {
+  const d = new Date(iso + 'T00:00:00');
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0,10);
+};
+const getWeekStart = (iso) => {
+  const d = new Date(iso + 'T00:00:00');
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  return d.toISOString().slice(0,10);
+};
+const getISOWeek = (iso) => {
+  const d = new Date(iso + 'T00:00:00');
+  const jan4 = new Date(d.getFullYear(), 0, 4);
+  const startOfWeek1 = new Date(jan4);
+  startOfWeek1.setDate(jan4.getDate() - (jan4.getDay() || 7) + 1);
+  return Math.ceil((d - startOfWeek1) / 604800000) + 1;
+};
+const fmtTime = (t) => t || '';
+const WDAYS = ['Mo','Di','Mi','Do','Fr','Sa','So'];
+const MONTHS = ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
+
+const DIFF_XP = {easy:25, medium:50, hard:100, legendary:250};
+const TYPE_XP  = {event:20, boss:80, daily:25, reminder:10};
+const TYPE_ICON = {event:'📅', boss:'💀', daily:'🌅', reminder:'🔔'};
+
+const XP_FOR_LEVEL = (lv) => Math.floor(100 * Math.pow(lv, 1.4));
+
+const TITLES = [
+  {min:1,  title:'Neuling',      avatar:'⚔️'},
+  {min:3,  title:'Abenteurer',   avatar:'🛡️'},
+  {min:6,  title:'Kämpfer',      avatar:'🔮'},
+  {min:11, title:'Veteran',      avatar:'👑'},
+  {min:21, title:'Champion',     avatar:'🌟'},
+  {min:31, title:'Legende',      avatar:'⚡'},
+  {min:51, title:'Gott',         avatar:'🐉'},
+];
+const getTitle = (lv) => [...TITLES].reverse().find(t => lv >= t.min) || TITLES[0];
+
+const ALL_ACHS = [
+  {id:'first-task',   icon:'⚔️',  name:'Erster Schritt', desc:'Erste Aufgabe erledigt'},
+  {id:'week-streak',  icon:'🔥',  name:'Flammengeist',   desc:'7 Tage Streak'},
+  {id:'level-5',      icon:'⭐',  name:'Aufsteiger',     desc:'Level 5 erreicht'},
+  {id:'boss-slayer',  icon:'💀',  name:'Bossschlächter', desc:'Boss-Event gemeistert'},
+  {id:'daily-10',     icon:'🌅',  name:'Morgenroutine',  desc:'10 Daily-Quests erledigt'},
+  {id:'legendary',    icon:'🐉',  name:'Legendär',       desc:'Legendäre Quest erledigt'},
+  {id:'level-10',     icon:'👑',  name:'Champion',       desc:'Level 10 erreicht'},
+  {id:'quests-20',    icon:'📜',  name:'Questmeister',   desc:'20 Quests erledigt'},
+  {id:'streak-30',    icon:'💎',  name:'Diamant',        desc:'30 Tage Streak'},
+];
+
+/* ============================================================
+   DATA / STORAGE
+   ============================================================ */
+let data;
+
+function defaultData() {
+  const today = todayISO();
+  const ws = getWeekStart(today);
+  return {
+    player: {
+      name: 'Held', level: 1, xp: 0, totalXp: 0,
+      streak: 1, lastActive: today, gold: 0,
+      completedCount: 0
+    },
+    events: [
+      {id:uid(), title:'Morgenroutine', date:addDays(ws,0), time:'07:00', endTime:'', type:'daily', xpReward:25, completed:false, note:'Meditation + Sport'},
+      {id:uid(), title:'Team-Meeting', date:addDays(ws,1), time:'10:00', endTime:'11:00', type:'boss', xpReward:80, completed:false, note:'Wochenziele besprechen'},
+      {id:uid(), title:'Mittagspause', date:addDays(ws,2), time:'12:30', endTime:'13:30', type:'event', xpReward:20, completed:false, note:''},
+      {id:uid(), title:'Sport & Bewegung', date:addDays(ws,3), time:'18:00', endTime:'', type:'daily', xpReward:25, completed:false, note:''},
+      {id:uid(), title:'Wochenreview', date:addDays(ws,4), time:'17:00', endTime:'', type:'boss', xpReward:80, completed:false, note:'Reflexion der Woche'},
+    ],
+    quests: [
+      {id:uid(), title:'Inbox auf Zero bringen', desc:'E-Mails sortieren und beantworten', difficulty:'medium', type:'side', deadline:'', completed:false, completedAt:null, xpReward:50},
+      {id:uid(), title:'10 Minuten meditieren', desc:'Täglich kurz innehalten und durchatmen', difficulty:'easy', type:'daily', deadline:'', completed:false, completedAt:null, xpReward:25},
+      {id:uid(), title:'Wochenplan erstellen', desc:'Ziele und Termine für die nächste Woche planen', difficulty:'medium', type:'main', deadline:addDays(ws,6), completed:false, completedAt:null, xpReward:50},
+      {id:uid(), title:'Großes Projekt starten', desc:'Den ersten Schritt beim wichtigsten Projekt wagen', difficulty:'hard', type:'main', deadline:'', completed:false, completedAt:null, xpReward:100},
+    ],
+    achievements: [],
+    settings: {},
+    screenTime: {
+      goal: 240,
+      history: []
+    }
+  };
+}
+
+function load() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (!raw) { data = defaultData(); save(); return; }
+    data = JSON.parse(raw);
+    if (!data.player || !data.events) { data = defaultData(); save(); }
+  } catch(e) { data = defaultData(); save(); }
+}
+function save() { localStorage.setItem(STORE_KEY, JSON.stringify(data)); }
+
+/* ============================================================
+   STREAK
+   ============================================================ */
+function updateStreak() {
+  const today = todayISO();
+  const last = data.player.lastActive;
+  if (last === today) return;
+  const diff = Math.round((new Date(today) - new Date(last)) / 86400000);
+  if (diff === 1) data.player.streak = (data.player.streak || 0) + 1;
+  else if (diff > 1) data.player.streak = 1;
+  else if (!data.player.streak) data.player.streak = 1;
+  data.player.lastActive = today;
+  save();
+}
+
+/* ============================================================
+   XP / LEVEL
+   ============================================================ */
+function addXP(amount) {
+  const p = data.player;
+  p.xp += amount;
+  p.totalXp += amount;
+  let leveled = false;
+  while (p.xp >= XP_FOR_LEVEL(p.level)) {
+    p.xp -= XP_FOR_LEVEL(p.level);
+    p.level += 1;
+    leveled = true;
+  }
+  save();
+  updateXPBar();
+  if (leveled) showLevelUp(p.level);
+  return {...p};
+}
+
+function xpPercent() {
+  const p = data.player;
+  const needed = XP_FOR_LEVEL(p.level);
+  return Math.min(100, Math.round((p.xp / needed) * 100));
+}
+
+/* ============================================================
+   TOAST
+   ============================================================ */
+const toastEl = document.getElementById('toast');
+let toastTimer;
+function toast(msg) {
+  toastEl.textContent = msg;
+  toastEl.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2000);
+}
+
+/* ============================================================
+   XP POP ANIMATION
+   ============================================================ */
+function xpPop(amount, x, y) {
+  const el = document.createElement('div');
+  el.className = 'xp-pop';
+  el.textContent = `+${amount} XP`;
+  el.style.cssText = `left:${x}px;top:${y}px`;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 1200);
+}
+
+/* ============================================================
+   LEVEL UP MODAL
+   ============================================================ */
+const levelupEl = document.getElementById('levelup');
+document.getElementById('lu-close').onclick = () => levelupEl.classList.remove('show');
+function showLevelUp(lv) {
+  const t = getTitle(lv);
+  document.getElementById('lu-num').textContent = lv;
+  document.getElementById('lu-txt').textContent = `Du bist jetzt Level ${lv}!`;
+  document.getElementById('lu-sub').textContent = `Neuer Titel: ${t.title}`;
+  levelupEl.classList.add('show');
+  checkAchievements();
+}
+
+/* ============================================================
+   XP BAR UPDATE
+   ============================================================ */
+function updateXPBar() {
+  const p = data.player;
+  const t = getTitle(p.level);
+  const pct = xpPercent();
+  document.getElementById('xp-avatar').textContent = t.avatar;
+  document.getElementById('xp-name').textContent = p.name;
+  document.getElementById('xp-lv').textContent = `Lv.${p.level}`;
+  document.getElementById('xp-bar').style.width = pct + '%';
+  document.getElementById('xp-streak').textContent = `🔥 ${p.streak}`;
+}
+
+/* ============================================================
+   ACHIEVEMENTS
+   ============================================================ */
+function checkAchievements() {
+  const p = data.player;
+  const unlocked = data.achievements;
+  const unlock = (id) => {
+    if (unlocked.includes(id)) return;
+    unlocked.push(id);
+    const a = ALL_ACHS.find(x => x.id === id);
+    if (a) toast(`🏆 Errungenschaft: ${a.name}`);
+  };
+
+  const doneCount = data.quests.filter(q => q.completed).length +
+                    data.events.filter(e => e.completed).length;
+  if (doneCount >= 1) unlock('first-task');
+  if (p.streak >= 7) unlock('week-streak');
+  if (p.streak >= 30) unlock('streak-30');
+  if (p.level >= 5) unlock('level-5');
+  if (p.level >= 10) unlock('level-10');
+  if (data.events.filter(e => e.type === 'boss' && e.completed).length >= 1) unlock('boss-slayer');
+  if (data.quests.filter(q => q.type === 'daily' && q.completed).length >= 10) unlock('daily-10');
+  if (data.quests.filter(q => q.difficulty === 'legendary' && q.completed).length >= 1) unlock('legendary');
+  if (data.quests.filter(q => q.completed).length >= 20) unlock('quests-20');
+  save();
+}
+
+/* ============================================================
+   NAVIGATION
+   ============================================================ */
+const screens = document.querySelectorAll('.screen');
+const navBtns = document.querySelectorAll('nav button');
+let currentScreen = 'week';
+let pendingAddType = 'event';
+
+function showScreen(name) {
+  if (name === currentScreen) return;
+  currentScreen = name;
+  screens.forEach(s => s.classList.toggle('active', s.id === name));
+  navBtns.forEach(b => b.classList.toggle('active', b.dataset.screen === name));
+  if (name === 'week') renderWeek();
+  if (name === 'quests') renderQuests();
+  if (name === 'profile') renderProfile();
+  if (name === 'screentime') renderScreenTime();
+  if (name === 'add-screen') renderAddForm(pendingAddType);
+}
+navBtns.forEach(b => {
+  if (b.dataset.screen) b.addEventListener('click', () => {
+    pendingAddType = 'event';
+    showScreen(b.dataset.screen);
+  });
+});
+
+function openAdd(type) {
+  pendingAddType = type;
+  showScreen('add-screen');
+}
+
+document.getElementById('week-fab').addEventListener('click', () => openAdd('event'));
+document.getElementById('quest-fab').addEventListener('click', () => openAdd('quest'));
+
+/* ============================================================
+   WEEK SCREEN
+   ============================================================ */
+let currentWeekStart = getWeekStart(todayISO());
+let selectedDay = todayISO();
+
+document.getElementById('week-prev').addEventListener('click', () => {
+  currentWeekStart = addDays(currentWeekStart, -7);
+  renderWeek();
+});
+document.getElementById('week-next').addEventListener('click', () => {
+  currentWeekStart = addDays(currentWeekStart, 7);
+  renderWeek();
+});
+document.getElementById('week-today').addEventListener('click', () => {
+  currentWeekStart = getWeekStart(todayISO());
+  selectedDay = todayISO();
+  renderWeek();
+});
+
+function renderWeek() {
+  const today = todayISO();
+  const kw = getISOWeek(currentWeekStart);
+  const year = currentWeekStart.slice(0,4);
+  document.getElementById('week-label').textContent = `KW ${kw} · ${year}`;
+
+  updateXPBar();
+
+  const pillsEl = document.getElementById('day-pills');
+  pillsEl.innerHTML = '';
+  for (let i = 0; i < 7; i++) {
+    const date = addDays(currentWeekStart, i);
+    const d = new Date(date + 'T00:00:00');
+    const hasEvents = data.events.some(e => e.date === date);
+    const pill = document.createElement('button');
+    pill.className = 'day-pill' +
+      (date === today ? ' today' : '') +
+      (date === selectedDay ? ' selected' : '');
+    pill.innerHTML = `<span class="wday">${WDAYS[i]}</span><span class="dnum">${d.getDate()}</span>${hasEvents ? '<span class="dot"></span>' : ''}`;
+    pill.addEventListener('click', () => {
+      selectedDay = date;
+      renderWeek();
+    });
+    pillsEl.appendChild(pill);
+  }
+
+  renderDayEvents();
+}
+
+function renderDayEvents() {
+  const el = document.getElementById('day-events');
+  const d = new Date(selectedDay + 'T00:00:00');
+  const label = `${WDAYS[(d.getDay()||7)-1]}, ${d.getDate()}. ${MONTHS[d.getMonth()]}`;
+  const events = data.events
+    .filter(e => e.date === selectedDay)
+    .sort((a,b) => (a.time||'99:99').localeCompare(b.time||'99:99'));
+
+  if (!events.length) {
+    el.innerHTML = `<div class="day-date-label">${escHtml(label)}</div>
+      <div class="empty-day"><div class="em">🌟</div><div>Keine Termine.<br>Füge einen hinzu!</div></div>`;
+    return;
+  }
+  el.innerHTML = `<div class="day-date-label">${escHtml(label)}</div>` +
+    events.map(e => eventItemHTML(e)).join('');
+
+  el.querySelectorAll('.event-item').forEach(el => {
+    const id = el.dataset.id;
+    el.querySelector('.event-check').addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      completeEvent(id, ev);
+    });
+    el.addEventListener('click', () => deleteEventPrompt(id));
+  });
+}
+
+function eventItemHTML(e) {
+  const icon = TYPE_ICON[e.type] || '📅';
+  const timeStr = e.time ? (e.endTime ? `${e.time} – ${e.endTime}` : e.time) : '';
+  const xpStr = `+${e.xpReward || TYPE_XP[e.type] || 20} XP`;
+  return `<div class="event-item type-${escHtml(e.type)}${e.completed ? ' completed' : ''}" data-id="${escHtml(e.id)}">
+    <div class="event-icon">${icon}</div>
+    <div class="event-body">
+      <div class="event-title">${escHtml(e.title)}</div>
+      <div class="event-sub">
+        ${timeStr ? `<span>${escHtml(timeStr)}</span>` : ''}
+        <span class="event-xp">${xpStr}</span>
+      </div>
+    </div>
+    <div class="event-check">${e.completed ? '✓' : ''}</div>
+  </div>`;
+}
+
+function completeEvent(id, ev) {
+  const e = data.events.find(x => x.id === id);
+  if (!e || e.completed) return;
+  e.completed = true;
+  const xp = e.xpReward || TYPE_XP[e.type] || 20;
+  const rect = ev.target.getBoundingClientRect();
+  addXP(xp);
+  xpPop(xp, rect.left, rect.top);
+  data.player.completedCount = (data.player.completedCount || 0) + 1;
+  checkAchievements();
+  save();
+  renderDayEvents();
+  renderWeek();
+  toast(`✅ ${e.title} erledigt!`);
+}
+
+function deleteEventPrompt(id) {
+  const e = data.events.find(x => x.id === id);
+  if (!e) return;
+  if (!confirm(`"${e.title}" löschen?`)) return;
+  data.events = data.events.filter(x => x.id !== id);
+  save();
+  renderDayEvents();
+  renderWeek();
+}
+
+/* ============================================================
+   QUESTS SCREEN
+   ============================================================ */
+let questFilter = 'active';
+
+document.querySelectorAll('.quest-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    questFilter = btn.dataset.qf;
+    document.querySelectorAll('.quest-tab').forEach(b => b.classList.toggle('active', b === btn));
+    renderQuests();
+  });
+});
+
+function renderQuests() {
+  let list;
+  if (questFilter === 'active') list = data.quests.filter(q => !q.completed);
+  else if (questFilter === 'daily') list = data.quests.filter(q => q.type === 'daily');
+  else list = data.quests.filter(q => q.completed);
+
+  const el = document.getElementById('quest-list');
+  if (!list.length) {
+    el.innerHTML = `<div class="empty-day"><div class="em">📭</div><div>Keine Quests hier.<br>Füge eine hinzu!</div></div>`;
+    return;
+  }
+  el.innerHTML = list.map(q => questCardHTML(q)).join('');
+
+  el.querySelectorAll('.complete-btn').forEach(btn => {
+    btn.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      completeQuest(btn.dataset.id, ev);
+    });
+  });
+  el.querySelectorAll('.quest-card').forEach(card => {
+    card.addEventListener('click', () => deleteQuestPrompt(card.dataset.id));
+  });
+}
+
+function questCardHTML(q) {
+  const today = todayISO();
+  const xp = q.xpReward || DIFF_XP[q.difficulty] || 25;
+  const deadlineStr = q.deadline
+    ? `<span class="quest-deadline${q.deadline < today ? ' over' : ''}">⏰ ${q.deadline}</span>`
+    : '';
+  const badgeCls = `qbadge qbadge-${q.type}`;
+  const typeLabel = {main:'Haupt',side:'Neben',daily:'Täglich'}[q.type] || q.type;
+  const completeBtn = !q.completed
+    ? `<button class="complete-btn" data-id="${escHtml(q.id)}">✓ Erledigen</button>`
+    : `<span style="color:var(--green);font-size:.8rem">✅ Fertig</span>`;
+  return `<div class="quest-card diff-${escHtml(q.difficulty)}${q.completed ? ' done' : ''}" data-id="${escHtml(q.id)}">
+    <div class="quest-top">
+      <div class="quest-title">${escHtml(q.title)}</div>
+      <span class="${badgeCls}">${escHtml(typeLabel)}</span>
+    </div>
+    ${q.desc ? `<div class="quest-desc">${escHtml(q.desc)}</div>` : ''}
+    <div class="quest-footer">
+      <span class="quest-xp">⭐ ${xp} XP</span>
+      ${deadlineStr}
+      ${completeBtn}
+    </div>
+  </div>`;
+}
+
+function completeQuest(id, ev) {
+  const q = data.quests.find(x => x.id === id);
+  if (!q || q.completed) return;
+  q.completed = true;
+  q.completedAt = new Date().toISOString();
+  const xp = q.xpReward || DIFF_XP[q.difficulty] || 25;
+  const rect = ev.target.getBoundingClientRect();
+  addXP(xp);
+  xpPop(xp, rect.left, rect.top);
+  data.player.completedCount = (data.player.completedCount || 0) + 1;
+  checkAchievements();
+  save();
+  renderQuests();
+  toast(`⚔️ Quest erledigt! +${xp} XP`);
+}
+
+function deleteQuestPrompt(id) {
+  const q = data.quests.find(x => x.id === id);
+  if (!q) return;
+  if (!confirm(`Quest "${q.title}" löschen?`)) return;
+  data.quests = data.quests.filter(x => x.id !== id);
+  save();
+  renderQuests();
+}
+
+/* ============================================================
+   PROFILE SCREEN
+   ============================================================ */
+function renderProfile() {
+  const p = data.player;
+  const t = getTitle(p.level);
+  const needed = XP_FOR_LEVEL(p.level);
+  const pct = Math.min(100, Math.round((p.xp / needed) * 100));
+
+  document.getElementById('p-avatar').textContent = t.avatar;
+  document.getElementById('p-name').textContent = p.name;
+  document.getElementById('p-title').textContent = t.title;
+  document.getElementById('p-level').textContent = `⭐ Level ${p.level}`;
+  document.getElementById('p-xp-fill').style.width = pct + '%';
+  document.getElementById('p-xp-lbl').textContent = `${p.xp} / ${needed} XP`;
+
+  document.getElementById('ps-streak').textContent = p.streak;
+  document.getElementById('ps-xp').textContent = p.totalXp;
+  document.getElementById('ps-done').textContent = p.completedCount || 0;
+  document.getElementById('ps-gold').textContent = p.gold;
+
+  const grid = document.getElementById('ach-grid');
+  grid.innerHTML = ALL_ACHS.map(a => {
+    const unlocked = data.achievements.includes(a.id);
+    return `<div class="ach-tile ${unlocked ? 'unlocked' : 'locked'}" title="${escHtml(a.desc)}">
+      <div class="ach-ico">${a.icon}</div>
+      <div class="ach-lbl">${escHtml(a.name)}</div>
+    </div>`;
+  }).join('');
+}
+
+/* ============================================================
+   BILDSCHIRMZEIT SCREEN
+   ============================================================ */
+function fmtMinutes(m) {
+  if (!m && m !== 0) return '–';
+  const h = Math.floor(m / 60);
+  const min = m % 60;
+  return h > 0 ? `${h}h ${min > 0 ? min + 'm' : ''}`.trim() : `${min}m`;
+}
+
+function calcScreenXP(actual, goal) {
+  if (actual > goal) return 5;
+  const saved = goal - actual;
+  return Math.min(200, 30 + Math.floor(saved / 15) * 10);
+}
+
+function todayScreenEntry() {
+  const today = todayISO();
+  return (data.screenTime.history || []).find(h => h.date === today) || null;
+}
+
+function reportScreenTime(minutes) {
+  if (!data.screenTime) data.screenTime = {goal: 240, history: []};
+  const today = todayISO();
+  const existing = data.screenTime.history.find(h => h.date === today);
+  const xp = calcScreenXP(minutes, data.screenTime.goal);
+  if (existing) {
+    existing.minutes = minutes;
+    existing.xpEarned = xp;
+  } else {
+    data.screenTime.history.push({date: today, minutes, xpEarned: xp});
+  }
+  addXP(xp);
+  checkAchievements();
+  save();
+  return xp;
+}
+
+function renderScreenTime() {
+  if (!data.screenTime) data.screenTime = {goal: 240, history: []};
+  const st = data.screenTime;
+  const today = todayISO();
+  const todayEntry = todayScreenEntry();
+  const goal = st.goal;
+
+  // Ring SVG
+  const circ = 2 * Math.PI * 52;
+  let ratio = todayEntry ? Math.min(1.15, todayEntry.minutes / goal) : 0;
+  const offset = circ * (1 - Math.min(1, ratio));
+  const ringColor = !todayEntry ? 'var(--border)' :
+    ratio <= 0.75 ? 'var(--green)' :
+    ratio <= 1    ? 'var(--gold)'  : 'var(--red)';
+  const centerText = todayEntry ? fmtMinutes(todayEntry.minutes) : '?';
+  const goalText = `Ziel: ${fmtMinutes(goal)}`;
+
+  // Last 7 days for bar chart
+  const days7 = [];
+  for (let i = 6; i >= 0; i--) {
+    const date = addDays(today, -i);
+    const entry = st.history.find(h => h.date === date);
+    days7.push({date, entry, wday: WDAYS[((new Date(date + 'T00:00:00').getDay()) || 7) - 1]});
+  }
+  const maxMin = Math.max(goal, ...days7.map(d => d.entry ? d.entry.minutes : 0), 1);
+
+  const barsHTML = days7.map(d => {
+    const m = d.entry ? d.entry.minutes : 0;
+    const h = d.entry ? Math.round((m / maxMin) * 52) : 3;
+    const cls = !d.entry ? 'empty' : m <= goal ? 'under' : 'over';
+    return `<div class="st-bar-wrap">
+      <div class="st-bar ${cls}" style="height:${h}px"></div>
+      <div class="st-bar-lbl">${d.wday}</div>
+    </div>`;
+  }).join('');
+
+  // Stats
+  const reported = st.history.filter(h => h.minutes <= goal);
+  const streak = (() => {
+    let s = 0;
+    for (let i = 0; i < 30; i++) {
+      const d = addDays(today, -i);
+      const e = st.history.find(h => h.date === d);
+      if (e && e.minutes <= goal) s++;
+      else if (i === 0 && !e) continue;
+      else break;
+    }
+    return s;
+  })();
+  const avg = st.history.length
+    ? Math.round(st.history.reduce((a, h) => a + h.minutes, 0) / st.history.length)
+    : 0;
+  const totalXpST = st.history.reduce((a, h) => a + (h.xpEarned || 0), 0);
+
+  // Today's input form or done badge
+  const inputSection = todayEntry
+    ? `<div class="st-done-badge">
+        ✅ Heute eingetragen: ${fmtMinutes(todayEntry.minutes)} · +${todayEntry.xpEarned} XP verdient
+        <br><button onclick="overrideToday()" style="font-size:.75rem;color:var(--muted);margin-top:.4rem;text-decoration:underline">Korrigieren</button>
+       </div>`
+    : `<div style="margin-top:.3rem">
+        <div style="font-size:.83rem;color:var(--muted);margin-bottom:.5rem">Wie lange warst du heute am Handy? (aus Einstellungen › Bildschirmzeit)</div>
+        <div class="st-input-row">
+          <input type="number" id="st-h-input" min="0" max="23" placeholder="0" style="max-width:65px">
+          <label>h</label>
+          <input type="number" id="st-m-input" min="0" max="59" placeholder="0" style="max-width:65px">
+          <label>min</label>
+          <button class="st-submit-btn" onclick="submitScreenTime()">Eintragen</button>
+        </div>
+        <div class="st-xp-preview" id="st-xp-preview">Trage deine Zeit ein um XP zu sehen</div>
+      </div>`;
+
+  document.getElementById('st-content').innerHTML = `
+    <div class="st-card">
+      <h2>📊 Heute</h2>
+      <div class="st-ring-wrap">
+        <svg viewBox="0 0 120 120" width="130" height="130">
+          <circle cx="60" cy="60" r="52" fill="none" stroke="var(--surface2)" stroke-width="10"/>
+          <circle cx="60" cy="60" r="52" fill="none" stroke="${ringColor}" stroke-width="10"
+            stroke-dasharray="${circ.toFixed(1)}" stroke-dashoffset="${offset.toFixed(1)}"
+            stroke-linecap="round" transform="rotate(-90 60 60)" style="transition:stroke-dashoffset .6s"/>
+          <text x="60" y="57" text-anchor="middle" fill="var(--text)" font-size="16" font-weight="bold" font-family="system-ui">${escHtml(centerText)}</text>
+          <text x="60" y="73" text-anchor="middle" fill="#64748b" font-size="9" font-family="system-ui">${escHtml(goalText)}</text>
+        </svg>
+        <div class="st-ring-label">${ratio <= 1 ? '🟢 Unter Ziel' : '🔴 Über Ziel'} · ${todayEntry ? fmtMinutes(goal - todayEntry.minutes) + (goal >= todayEntry.minutes ? ' gespart' : ' überzogen') : 'Noch nicht eingetragen'}</div>
+      </div>
+      ${inputSection}
+      <div class="st-goal-row">
+        <span>Tagesziel</span>
+        <div style="display:flex;align-items:center;gap:.6rem">
+          <span class="st-goal-val" id="st-goal-display">${fmtMinutes(goal)}</span>
+          <button class="st-edit-btn" onclick="editGoal()">Ändern</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="st-card">
+      <h2>📅 Letzte 7 Tage</h2>
+      <div class="st-history-bars">${barsHTML}</div>
+      <div class="st-stats-grid">
+        <div class="st-stat"><div class="v">${streak}</div><div class="k">🎯 Unter Ziel</div></div>
+        <div class="st-stat"><div class="v">${fmtMinutes(avg)}</div><div class="k">⌀ Durchschnitt</div></div>
+        <div class="st-stat"><div class="v">${totalXpST}</div><div class="k">⭐ XP verdient</div></div>
+      </div>
+    </div>
+
+    <div class="st-card" style="background:rgba(124,58,237,.08);border-color:rgba(124,58,237,.25)">
+      <h2>💡 XP-Formel</h2>
+      <div style="font-size:.82rem;color:var(--muted);line-height:1.6">
+        Basis: <strong style="color:var(--text)">30 XP</strong> für Eintragen unter Ziel<br>
+        Bonus: <strong style="color:var(--gold)">+10 XP</strong> pro 15 Minuten gespart<br>
+        Trostpreis: <strong style="color:var(--muted)">5 XP</strong> wenn über Ziel<br>
+        Maximum: <strong style="color:var(--accent2)">200 XP</strong> pro Tag
+      </div>
+      <div style="margin-top:.8rem;display:flex;flex-direction:column;gap:.3rem">
+        ${[0.25, 0.5, 0.75, 1.0].map(f => {
+          const mins = Math.round(goal * f);
+          const xp = calcScreenXP(mins, goal);
+          return `<div style="display:flex;justify-content:space-between;font-size:.81rem">
+            <span style="color:var(--muted)">${fmtMinutes(mins)} Bildschirmzeit</span>
+            <span style="color:var(--gold);font-weight:700">+${xp} XP</span>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+
+  // Live XP preview on input
+  const hIn = document.getElementById('st-h-input');
+  const mIn = document.getElementById('st-m-input');
+  const preview = document.getElementById('st-xp-preview');
+  if (hIn && mIn && preview) {
+    function updatePreview() {
+      const total = (parseInt(hIn.value) || 0) * 60 + (parseInt(mIn.value) || 0);
+      if (!total) { preview.textContent = 'Trage deine Zeit ein um XP zu sehen'; return; }
+      const xp = calcScreenXP(total, goal);
+      const saved = goal - total;
+      if (saved >= 0) {
+        preview.textContent = `🎉 ${fmtMinutes(saved)} gespart → +${xp} XP`;
+        preview.style.color = 'var(--gold)';
+      } else {
+        preview.textContent = `⚠️ ${fmtMinutes(-saved)} über Ziel → +${xp} XP (Trostpreis)`;
+        preview.style.color = 'var(--muted)';
+      }
+    }
+    hIn.addEventListener('input', updatePreview);
+    mIn.addEventListener('input', updatePreview);
+  }
+}
+
+function submitScreenTime() {
+  const h = parseInt(document.getElementById('st-h-input')?.value) || 0;
+  const m = parseInt(document.getElementById('st-m-input')?.value) || 0;
+  const total = h * 60 + m;
+  if (!total) { toast('Bitte Zeit eingeben'); return; }
+  const xp = reportScreenTime(total);
+  toast(`📱 Eingetragen! +${xp} XP verdient`);
+  renderScreenTime();
+}
+
+function overrideToday() {
+  const today = todayISO();
+  if (data.screenTime.history) {
+    data.screenTime.history = data.screenTime.history.filter(h => h.date !== today);
+  }
+  save();
+  renderScreenTime();
+}
+
+function editGoal() {
+  const cur = data.screenTime.goal;
+  const h = Math.floor(cur / 60);
+  const m = cur % 60;
+  const input = prompt(`Tagesziel in Minuten (aktuell: ${fmtMinutes(cur)})\nEingabe als Stunden:Minuten, z.B. 3:30 für 3h30m oder einfach 180 für Minuten:`, `${h}:${m < 10 ? '0' + m : m}`);
+  if (!input) return;
+  let total;
+  if (input.includes(':')) {
+    const [hh, mm] = input.split(':').map(Number);
+    total = hh * 60 + (mm || 0);
+  } else {
+    total = parseInt(input);
+  }
+  if (!total || total < 10 || total > 1440) { toast('Ungültige Eingabe (10–1440 Minuten)'); return; }
+  data.screenTime.goal = total;
+  save();
+  renderScreenTime();
+  toast(`✅ Ziel gesetzt: ${fmtMinutes(total)}`);
+}
+
+/* ============================================================
+   ADD SCREEN
+   ============================================================ */
+let currentAddType = 'event';
+
+document.querySelectorAll('.type-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    currentAddType = btn.dataset.at;
+    document.querySelectorAll('.type-tab').forEach(b => b.classList.toggle('active', b === btn));
+    renderAddForm(currentAddType);
+  });
+});
+
+function renderAddForm(type) {
+  currentAddType = type;
+  document.querySelectorAll('.type-tab').forEach(b => b.classList.toggle('active', b.dataset.at === type));
+  const wrap = document.getElementById('add-form-wrap');
+  if (type === 'event') wrap.innerHTML = eventFormHTML();
+  else if (type === 'quest') wrap.innerHTML = questFormHTML();
+  else wrap.innerHTML = reminderFormHTML();
+  wrap.querySelector('form').addEventListener('submit', onAddSubmit);
+}
+
+function eventFormHTML() {
+  const today = selectedDay || todayISO();
+  return `<form id="add-form">
+    <label>Titel *</label>
+    <input name="title" required autocomplete="off" placeholder="z.B. Meeting mit Chef">
+    <div class="row">
+      <div><label>Datum</label><input name="date" type="date" value="${today}"></div>
+      <div><label>Typ</label>
+        <select name="type">
+          <option value="event">📅 Termin</option>
+          <option value="boss">💀 Boss</option>
+          <option value="daily">🌅 Daily</option>
+          <option value="reminder">🔔 Reminder</option>
+        </select>
+      </div>
+    </div>
+    <div class="row">
+      <div><label>Uhrzeit</label><input name="time" type="time"></div>
+      <div><label>Ende</label><input name="endTime" type="time"></div>
+    </div>
+    <label>XP-Belohnung</label>
+    <input name="xpReward" type="number" min="5" max="500" value="20">
+    <label>Notiz</label>
+    <textarea name="note" placeholder="Optional…"></textarea>
+    <button class="save-btn" type="submit">💾 Speichern</button>
+  </form>`;
+}
+
+function questFormHTML() {
+  return `<form id="add-form">
+    <label>Titel *</label>
+    <input name="title" required autocomplete="off" placeholder="z.B. Projekt fertigstellen">
+    <label>Beschreibung</label>
+    <textarea name="desc" placeholder="Was ist zu tun?"></textarea>
+    <div class="row">
+      <div><label>Schwierigkeit</label>
+        <select name="difficulty" id="diff-select">
+          <option value="easy">Leicht (25 XP)</option>
+          <option value="medium" selected>Mittel (50 XP)</option>
+          <option value="hard">Schwer (100 XP)</option>
+          <option value="legendary">Legendär (250 XP)</option>
+        </select>
+      </div>
+      <div><label>Art</label>
+        <select name="type">
+          <option value="main">⚔️ Haupt</option>
+          <option value="side">📜 Neben</option>
+          <option value="daily">🌅 Täglich</option>
+        </select>
+      </div>
+    </div>
+    <label>Deadline (optional)</label>
+    <input name="deadline" type="date">
+    <button class="save-btn" type="submit">💾 Quest erstellen</button>
+  </form>`;
+}
+
+function reminderFormHTML() {
+  const today = todayISO();
+  return `<form id="add-form">
+    <label>Titel *</label>
+    <input name="title" required autocomplete="off" placeholder="z.B. Medikament nehmen">
+    <div class="row">
+      <div><label>Datum</label><input name="date" type="date" value="${today}"></div>
+      <div><label>Uhrzeit</label><input name="time" type="time"></div>
+    </div>
+    <label>Notiz</label>
+    <textarea name="note" placeholder="Optional…"></textarea>
+    <button class="save-btn" type="submit">🔔 Erinnerung setzen</button>
+  </form>`;
+}
+
+function onAddSubmit(e) {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  if (currentAddType === 'event' || currentAddType === 'reminder') {
+    const type = currentAddType === 'reminder' ? 'reminder' : (fd.get('type') || 'event');
+    const ev = {
+      id: uid(),
+      title: fd.get('title').trim(),
+      date: fd.get('date') || todayISO(),
+      time: fd.get('time') || '',
+      endTime: fd.get('endTime') || '',
+      type,
+      xpReward: parseInt(fd.get('xpReward') || TYPE_XP[type] || 20),
+      completed: false,
+      note: fd.get('note') || ''
+    };
+    if (!ev.title) { toast('Titel fehlt'); return; }
+    data.events.push(ev);
+    selectedDay = ev.date;
+    currentWeekStart = getWeekStart(ev.date);
+  } else {
+    const diff = fd.get('difficulty') || 'medium';
+    const q = {
+      id: uid(),
+      title: fd.get('title').trim(),
+      desc: fd.get('desc') || '',
+      difficulty: diff,
+      type: fd.get('type') || 'main',
+      deadline: fd.get('deadline') || '',
+      completed: false,
+      completedAt: null,
+      xpReward: DIFF_XP[diff] || 50
+    };
+    if (!q.title) { toast('Titel fehlt'); return; }
+    data.quests.push(q);
+  }
+  save();
+  toast('✅ Gespeichert!');
+  if (currentAddType === 'quest') {
+    showScreen('quests');
+  } else {
+    showScreen('week');
+  }
+}
+
+/* ============================================================
+   NOTIFICATIONS (Reminder check)
+   ============================================================ */
+function checkReminders() {
+  if (!('Notification' in window)) return;
+  const now = new Date();
+  data.events.filter(e => e.type === 'reminder' && !e.completed).forEach(e => {
+    if (!e.time) return;
+    const dt = new Date(e.date + 'T' + e.time);
+    const diff = dt - now;
+    if (diff > 0 && diff < 60000) {
+      if (Notification.permission === 'granted') {
+        new Notification('⏰ ' + e.title, {body: e.note || 'Erinnerung!'});
+      }
+    }
+  });
+}
+
+function requestNotifications() {
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+}
+
+/* ============================================================
+   AGENT API  —  window.LifeQuestAPI
+   ============================================================ */
+window.LifeQuestAPI = {
+  version: '1.0.0',
+
+  help() {
+    return [
+      'LifeQuest Agent API v1.0',
+      '========================',
+      '',
+      'READ:',
+      '  getPlayer()                     → Spieler-Status (Level, XP, Streak…)',
+      '  getToday()                      → Heutige Events + aktive Quests',
+      '  getWeek(isoDate?)               → 7-Tage-Array ab Montag',
+      '  getEvents(date?)                → Alle oder gefilterte Events (YYYY-MM-DD)',
+      '  getQuests(filter?)              → Quests (filter: active|daily|done)',
+      '  getReminders()                  → Bevorstehende Erinnerungen',
+      '  getAchievements()               → Alle Errungenschaften mit Unlock-Status',
+      '',
+      'WRITE:',
+      '  addEvent({title,date,time?,endTime?,type?,xpReward?,note?})  → event',
+      '  addQuest({title,desc?,difficulty?,type?,deadline?})          → quest',
+      '  addReminder({title,date,time,note?})                         → reminder',
+      '  completeEvent(id)               → {xpEarned, player}',
+      '  completeQuest(id)               → {xpEarned, player}',
+      '  deleteEvent(id)',
+      '  deleteQuest(id)',
+      '  setPlayerName(name)             → player',
+      '',
+      'BILDSCHIRMZEIT:',
+      '  reportScreenTime(minutes)       → {xpEarned, goal, player}  — weniger = mehr XP',
+      '  getScreenTimeToday()            → heutiger Eintrag + Ziel-Vergleich',
+      '  getScreenTimeHistory(days?)     → letzte N Tage (default 7)',
+      '  getScreenTimeGoal()             → aktuelles Tagesziel',
+      '  setScreenTimeGoal(minutes)      → Ziel setzen (10–1440)',
+      '',
+      'XP-FORMEL: 30 XP Basis + 10 XP pro 15min gespart, max 200 XP/Tag',
+      '',
+      'TYPEN:',
+      '  Event-Typen: event | boss | daily | reminder',
+      '  Quest-Typen: main | side | daily',
+      '  Schwierigkeit: easy(25xp) | medium(50xp) | hard(100xp) | legendary(250xp)',
+      '',
+      'BEISPIEL:',
+      '  LifeQuestAPI.addEvent({title:"Sprint-Review", date:"2026-05-05", time:"14:00", type:"boss"})',
+      '  LifeQuestAPI.getToday()',
+      '  LifeQuestAPI.completeQuest("abc123")',
+    ].join('\n');
+  },
+
+  getPlayer() {
+    const p = data.player;
+    const t = getTitle(p.level);
+    return {
+      name: p.name,
+      level: p.level,
+      xp: p.xp,
+      xpToNext: XP_FOR_LEVEL(p.level),
+      xpPercent: xpPercent(),
+      totalXp: p.totalXp,
+      streak: p.streak,
+      gold: p.gold,
+      completedCount: p.completedCount || 0,
+      title: t.title,
+      avatar: t.avatar
+    };
+  },
+
+  getToday() {
+    const today = todayISO();
+    return {
+      date: today,
+      events: data.events.filter(e => e.date === today),
+      quests: data.quests.filter(q => !q.completed),
+      reminders: data.events.filter(e => e.type === 'reminder' && e.date === today && !e.completed)
+    };
+  },
+
+  getWeek(isoDate) {
+    const start = getWeekStart(isoDate || todayISO());
+    const week = [];
+    for (let i = 0; i < 7; i++) {
+      const date = addDays(start, i);
+      week.push({
+        date,
+        weekday: WDAYS[i],
+        events: data.events.filter(e => e.date === date)
+      });
+    }
+    return week;
+  },
+
+  getEvents(date) {
+    if (date) return data.events.filter(e => e.date === date);
+    return [...data.events];
+  },
+
+  getQuests(filter) {
+    if (filter === 'active') return data.quests.filter(q => !q.completed);
+    if (filter === 'daily')  return data.quests.filter(q => q.type === 'daily');
+    if (filter === 'done')   return data.quests.filter(q => q.completed);
+    return [...data.quests];
+  },
+
+  getReminders() {
+    const now = new Date();
+    return data.events
+      .filter(e => e.type === 'reminder' && !e.completed)
+      .filter(e => new Date(e.date + (e.time ? 'T' + e.time : 'T00:00')) >= now)
+      .sort((a, b) => a.date.localeCompare(b.date) || (a.time||'').localeCompare(b.time||''));
+  },
+
+  getAchievements() {
+    return ALL_ACHS.map(a => ({
+      ...a,
+      unlocked: data.achievements.includes(a.id)
+    }));
+  },
+
+  addEvent(fields) {
+    if (!fields || !fields.title) throw new Error('title ist Pflichtfeld');
+    const type = fields.type || 'event';
+    const e = {
+      id: uid(),
+      title: String(fields.title),
+      date: fields.date || todayISO(),
+      time: fields.time || '',
+      endTime: fields.endTime || '',
+      type,
+      xpReward: fields.xpReward || TYPE_XP[type] || 20,
+      completed: false,
+      note: fields.note || ''
+    };
+    data.events.push(e);
+    save();
+    renderIfActive('week');
+    return e;
+  },
+
+  addQuest(fields) {
+    if (!fields || !fields.title) throw new Error('title ist Pflichtfeld');
+    const diff = fields.difficulty || 'medium';
+    const q = {
+      id: uid(),
+      title: String(fields.title),
+      desc: fields.desc || '',
+      difficulty: diff,
+      type: fields.type || 'main',
+      deadline: fields.deadline || '',
+      completed: false,
+      completedAt: null,
+      xpReward: fields.xpReward || DIFF_XP[diff] || 50
+    };
+    data.quests.push(q);
+    save();
+    renderIfActive('quests');
+    return q;
+  },
+
+  addReminder(fields) {
+    if (!fields || !fields.title) throw new Error('title ist Pflichtfeld');
+    const r = {
+      id: uid(),
+      title: String(fields.title),
+      date: fields.date || todayISO(),
+      time: fields.time || '',
+      endTime: '',
+      type: 'reminder',
+      xpReward: 10,
+      completed: false,
+      note: fields.note || ''
+    };
+    data.events.push(r);
+    save();
+    renderIfActive('week');
+    return r;
+  },
+
+  completeEvent(id) {
+    const e = data.events.find(x => x.id === id);
+    if (!e) throw new Error('Event nicht gefunden: ' + id);
+    if (e.completed) return {xpEarned: 0, player: this.getPlayer()};
+    e.completed = true;
+    const xpEarned = e.xpReward || TYPE_XP[e.type] || 20;
+    addXP(xpEarned);
+    data.player.completedCount = (data.player.completedCount || 0) + 1;
+    checkAchievements();
+    save();
+    renderIfActive('week');
+    return {xpEarned, player: this.getPlayer()};
+  },
+
+  completeQuest(id) {
+    const q = data.quests.find(x => x.id === id);
+    if (!q) throw new Error('Quest nicht gefunden: ' + id);
+    if (q.completed) return {xpEarned: 0, player: this.getPlayer()};
+    q.completed = true;
+    q.completedAt = new Date().toISOString();
+    const xpEarned = q.xpReward || DIFF_XP[q.difficulty] || 25;
+    addXP(xpEarned);
+    data.player.completedCount = (data.player.completedCount || 0) + 1;
+    checkAchievements();
+    save();
+    renderIfActive('quests');
+    return {xpEarned, player: this.getPlayer()};
+  },
+
+  deleteEvent(id) {
+    const before = data.events.length;
+    data.events = data.events.filter(x => x.id !== id);
+    if (data.events.length === before) throw new Error('Event nicht gefunden: ' + id);
+    save();
+    renderIfActive('week');
+  },
+
+  deleteQuest(id) {
+    const before = data.quests.length;
+    data.quests = data.quests.filter(x => x.id !== id);
+    if (data.quests.length === before) throw new Error('Quest nicht gefunden: ' + id);
+    save();
+    renderIfActive('quests');
+  },
+
+  setPlayerName(name) {
+    if (!name) throw new Error('name darf nicht leer sein');
+    data.player.name = String(name);
+    save();
+    updateXPBar();
+    return this.getPlayer();
+  },
+
+  /* --- BILDSCHIRMZEIT --- */
+  reportScreenTime(minutes) {
+    if (typeof minutes !== 'number' || minutes < 0)
+      throw new Error('minutes muss eine positive Zahl sein');
+    const xp = reportScreenTime(minutes);
+    renderIfActive('screentime');
+    return {minutes, xpEarned: xp, goal: data.screenTime.goal, player: this.getPlayer()};
+  },
+
+  getScreenTimeGoal() {
+    return {goal: data.screenTime.goal, goalFormatted: fmtMinutes(data.screenTime.goal)};
+  },
+
+  setScreenTimeGoal(minutes) {
+    if (typeof minutes !== 'number' || minutes < 10 || minutes > 1440)
+      throw new Error('minutes muss zwischen 10 und 1440 liegen');
+    if (!data.screenTime) data.screenTime = {goal: 240, history: []};
+    data.screenTime.goal = Math.round(minutes);
+    save();
+    renderIfActive('screentime');
+    return {goal: data.screenTime.goal, goalFormatted: fmtMinutes(data.screenTime.goal)};
+  },
+
+  getScreenTimeHistory(days) {
+    const n = days || 7;
+    const today = todayISO();
+    const result = [];
+    for (let i = n - 1; i >= 0; i--) {
+      const date = addDays(today, -i);
+      const entry = (data.screenTime.history || []).find(h => h.date === date);
+      result.push({
+        date,
+        reported: !!entry,
+        minutes: entry ? entry.minutes : null,
+        minutesFormatted: entry ? fmtMinutes(entry.minutes) : null,
+        xpEarned: entry ? entry.xpEarned : null,
+        underGoal: entry ? entry.minutes <= data.screenTime.goal : null
+      });
+    }
+    return result;
+  },
+
+  getScreenTimeToday() {
+    const entry = todayScreenEntry();
+    const goal = data.screenTime.goal;
+    if (!entry) return {reported: false, goal, goalFormatted: fmtMinutes(goal)};
+    return {
+      reported: true,
+      minutes: entry.minutes,
+      minutesFormatted: fmtMinutes(entry.minutes),
+      goal,
+      goalFormatted: fmtMinutes(goal),
+      saved: goal - entry.minutes,
+      savedFormatted: fmtMinutes(Math.abs(goal - entry.minutes)),
+      underGoal: entry.minutes <= goal,
+      xpEarned: entry.xpEarned
+    };
+  }
+};
+
+/* ============================================================
+   HELPER: re-render if screen is currently visible
+   ============================================================ */
+function renderIfActive(screen) {
+  if (currentScreen === screen) {
+    if (screen === 'week') renderWeek();
+    if (screen === 'quests') renderQuests();
+    if (screen === 'profile') renderProfile();
+    if (screen === 'screentime') renderScreenTime();
+  }
+}
+
+/* ============================================================
+   BOOT
+   ============================================================ */
+load();
+updateStreak();
+updateXPBar();
+renderWeek();
+requestNotifications();
+setInterval(checkReminders, 30000);
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () =>
+    navigator.serviceWorker.register('calendar-sw.js').catch(() => {})
+  );
+}
+</script>
+</body>
+</html>
